@@ -9,7 +9,9 @@
 </head>
 
 <body>
+<?php
     $stefan = new person();
+?>
 </body>
 
 </html>
