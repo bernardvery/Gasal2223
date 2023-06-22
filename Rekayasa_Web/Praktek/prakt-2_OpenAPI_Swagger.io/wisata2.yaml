@@ -1,0 +1,142 @@
+openapi: '3.0.2'
+info:
+  title: Wisata API
+  version: '1.0'
+servers:
+  - url: http://localhost/json/server
+tags:
+  - name: token
+    description: untuk autentikasi
+  - name: CRUD
+    description: CRUD API
+paths:
+  /wisata:
+    get:
+      tags:
+        - CRUD
+      description: Endpoint API untuk mengambil semua data wisata
+      responses:
+        '200':
+          description: OK
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+    post:
+      tags:
+        - CRUD
+      description: Endpoint API untuk input data wisata
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/insertWisata'
+      responses:
+        '200':
+          description: OK
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+        '300':
+          description: Gagal
+  /wisata/{id}:
+    get:
+      tags:
+        - CRUD
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: Endpoint API untuk mengambil semua data wisata
+      responses:
+        '200':
+          description: OK
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+    put:
+      tags:
+        - CRUD
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: Endpoint API untuk mengambil semua data wisata
+      responses:
+        '200':
+          description: OK
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+    delete:
+      tags:
+        - CRUD
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: Endpoint API untuk mengambil semua data wisata
+      responses:
+        '200':
+          description: OK
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+
+components:
+  schemas:
+    Wisata:
+      type: object
+      properties:
+        id_wisata:
+          type: integer
+          example: 1
+        kota:
+          type: string
+          example: SEMARANG
+        landmark:
+          type: string
+          example: LAWANG SEWU
+        tarif:
+          type: string
+          example: '500000'
+    insertWisata:
+      type: object
+      properties:
+        kota:
+          type: string
+          example: SEMARANG
+        landmark:
+          type: string
+          example: LAWANG SEWU
+        tarif:
+          type: string
+          example: '500000'
+  
+  

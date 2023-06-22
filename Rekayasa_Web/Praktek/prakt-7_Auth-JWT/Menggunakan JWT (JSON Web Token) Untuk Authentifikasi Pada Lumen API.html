@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<!-- saved from url=(0083)https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api -->
+<html lang="en" crosspilot=""><script type="text/javascript" async="" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/js"></script><script async="" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/analytics.js"></script><script src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(2).txt"></script><script src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(3).txt"></script><script src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(4).txt" id="google_shimpl"></script><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta http-equiv="last-modified" content="Sun, 17 Apr 2022 18:05:39 GMT">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <title>Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API</title>
+        <meta name="description" content="Sobatcoding.com - Tutorial menggunakan JWT (JSON Web Token) untuk authentifikasi pada Lumen API">
+        <meta name="rating" content="general"> 
+        <meta name="robots" content="index,follow">
+        <meta name="author" content="sobatcoding.com">
+
+        <meta property="og:locale" content="en"> 
+        <meta property="og:locale:alternate" content="id">
+        <meta property="og:url" content="https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api">
+        <meta property="og:title" content="Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API">
+        <meta property="og:image" content="https://cdn.sobatcoding.com/images/lumen-laravel.jpg">
+        <meta property="og:type" content="website">
+        <meta property="og:description" content="Sobatcoding.com - Tutorial menggunakan JWT (JSON Web Token) untuk authentifikasi pada Lumen API"> 
+    
+        <link rel="canonical" href="https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api">
+        <!--====== Favicon Icon ======-->
+        <link rel="shortcut icon" href="https://sobatcoding.com/assets/img/icon-v2.png" type="image/png">
+        <link rel="apple-touch-icon" href="https://sobatcoding.com/assets/icons-192.png" type="image/png">
+        <meta name="theme-color" content="#f45">
+        <link rel="manifest" href="https://sobatcoding.com/manifest.json?id=2e9ffc98071ca9af2718414610cadcfb">
+        <link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/appv2.css" as="style">
+        <link rel="stylesheet" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/appv2.css">
+<script>(function inject(config) {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            var isFrameInBlackList = function isFrameInBlackList(url) {
+              var blackListIframes = config;
+              return blackListIframes.some(function (e) {
+                return url.includes(e);
+              });
+            };
+
+            if (this.readyState === 4 && !isFrameInBlackList(this.responseURL)) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })(["facebook.com/","twitter.com/","youtube.com/","youtube-nocookie.com/embed/","//vk.com/","//www.vk.com/","//linkedin.com/","//www.linkedin.com/","//instagram.com/","//www.instagram.com/","//www.google.com/recaptcha/api2/","//hangouts.google.com/webchat/","//www.google.com/calendar/","//www.google.com/maps/embed","spotify.com/","soundcloud.com/","//player.vimeo.com/","//disqus.com/","//tgwidget.com/","//js.driftt.com/","friends2follow.com","/widget","login","//video.bigmir.net/","blogger.com","//smartlock.google.com/","//keep.google.com/","/web.tolstoycomments.com/","moz-extension://","chrome-extension://","/auth/","//analytics.google.com/","adclarity.com","paddle.com/checkout","hcaptcha.com","recaptcha.net","2captcha.com","accounts.google.com","www.google.com/shopping/customerreviews","buy.tinypass.com"]);</script><link rel="stylesheet" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/all.css" integrity="sha384-AYmEC3Yw5cVb3ZcuHtOA93w35dYTsvhLPVnYs9eStHfGJvOvKxVfELGroGkvsg+p" crossorigin="anonymous">
+
+        <script type="application/ld+json">{"@context":"https:\/\/schema.org","@graph":[{"@type":"Website","@id":"https:\/\/sobatcoding.com\/#website","url":"https:\/\/sobatcoding.com\/","name":"Sobatcoding.com","description":"Sobat coding adalah profesional web developer menerima jasa pembuatan website dan aplikasi berbasis web untuk keperluan bisnis, company profile, sekolah maupun organisasi dengan harga terjangkau dan desain profesional. Lengkap dengan artikel tutorial seputar bahasa pemrograman.","potentialAction":[{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https:\/\/sobatcoding.com\/?q={search_term_string}"},"query-input":"required name=search_term_string"}],"inlanguage":"en-US"},{"@type":"ImageObject","@id":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api\/#primaryimage","inLanguage":"en-US","url":"https:\/\/cdn.sobatcoding.com\/images\/lumen-laravel.jpg","contentUrl":"https:\/\/cdn.sobatcoding.com\/images\/lumen-laravel.jpg","width":"1200","height":"564","caption":"Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API"},{"@type":"WebPage","@id":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api\/#webpage","url":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api","name":"Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API","isPartOf":{"@id":"https:\/\/sobatcoding.com\/#website"},"primaryImageOfPage":{"@id":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api\/#primaryimage"},"datePublished":"2022-04-08T12:15:00+07:00","dateModified":"2022-04-17T18:05:39+07:00","author":{"@type":"Person","name":"Admin"},"description":"Sobatcoding.com - Tutorial menggunakan JWT (JSON Web Token) untuk authentifikasi pada Lumen API","breadcrumb":{"@id":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api\/#breadcrumb"},"inLanguage":"en-US","potentialAction":[{"@type":"ReadAction","target":["https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api"]}]},{"@type":"BreadcrumbList","@id":"https:\/\/sobatcoding.com\/articles\/menggunakan-jwt-json-web-token-auth-pada-lumen-api\/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https:\/\/sobatcoding.com\/"},{"@type":"ListItem","position":2,"name":"Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API"}]}]}</script>        
+                <meta name="google-site-verification" content="eLOrZ7bNTaIfHzPZMGKSKhUL8590ylr-N3774fTGWB0">
+                    <!-- Global site tag (gtag.js) - Google Analytics -->
+            <script async="" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/js(1)"></script>
+            <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-91Y5M86T08');
+            </script>
+            <script async="" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(5).txt" crossorigin="anonymous" data-checked-head="true"></script>
+                    
+
+    <meta http-equiv="origin-trial" content="A+cA2PUOfIOKAdSDJOW5CP9ZlxONy1yu+hqAq72zUtKw4rLdihqRp6Nui/jUyCyegr+BUtH+C+Elv0ufn05yBQEAAACFeyJvcmlnaW4iOiJodHRwczovL2RvdWJsZWNsaWNrLm5ldDo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjY5NzY2Mzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A+zsdH3aNZT/bkjT8U/o5ACzyaeNYzTvtoVmwf/KOilfv39pxY2AIsOwhQJv+YnXp98i3TqrQibIVtMWs5UHjgoAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXN5bmRpY2F0aW9uLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjY5NzY2Mzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="AxceVEhIegcDEHqLXFQ2+vPKqzCppoJYsRCZ/BdfVnbM/sUUF2BXV8lwNosyYjvoxnTh2FC8cOlAnA5uULr/zAUAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXRhZ3NlcnZpY2VzLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjY5NzY2Mzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt"></script><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/c7fa7451-6f95-4815-ac32-b8cc2537837a" data-awssuidacr="takcIqWzNZ6rVf72Kpxh2zXwROqmBbR3"></script><script type="text/javascript" async="" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/taas"></script><script src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/js(2)" async=""></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(6).txt"></script><link rel="preload" href="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt" as="script"><script type="text/javascript" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/f(7).txt"></script></head>
+    <body bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCJ9LCJ2ZXJzaW9uIjoiMS45LjAiLCJzY29yZSI6MTA5MDB9XQ==" aria-hidden="false">
+        
+        <!--navbar-->
+        <nav class="navbar navbar-expand-md navbar-light shadow">
+    <a class="navbar-brand" href="https://sobatcoding.com/">
+        <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/logo-bg.png" alt="sobatcoding.com" loading="lazy" class="img-fluid" width="190" height="41">
+    </a>	
+    
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav" bis_skin_checked="1">
+        <ul class="navbar-nav ml-auto py-4 py-md-0">
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/">Home</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/services">Service</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/products">Produk</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link active" href="https://sobatcoding.com/articles">Artikel</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/portfolio">Portofolio</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/about">Tentang Kami</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <a class="nav-link " href="https://sobatcoding.com/contact">Kontak</a>
+            </li>
+            <li class="nav-item pl-4 pl-md-0 ml-0 ml-md-4">
+                <form class="form-inline my-2 my-lg-0 nav-searching-form" action="https://sobatcoding.com/">
+                    <input class="form-control mr-sm-2" name="q" type="search" placeholder="Search" aria-label="Search" autocomplete="off">
+                    <span class="fa fa-search icon-search"></span>
+                </form>
+            </li>
+        </ul>
+    </div>
+    
+</nav><div class="google-auto-placed" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: 10px auto; background-color: transparent; height: 280px;" data-ad-status="filled"><div id="aswift_1_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 280px; width: 1200px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: visible;"><iframe id="aswift_1" name="aswift_1" style="left:0;position:absolute;top:0;border:0;width:1200px;height:280px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="1200" height="280" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads.html" data-google-container-id="a!2" bis_size="{&quot;x&quot;:46,&quot;y&quot;:98,&quot;w&quot;:1200,&quot;h&quot;:280,&quot;abs_x&quot;:46,&quot;abs_y&quot;:98}" bis_id="fr_kz8rrfxnekotwqgeokk79r" bis_depth="0" bis_chainid="1" data-google-query-id="CPTmg4mruvoCFeXIFgUdsHwIlg" data-load-complete="true"></iframe></div></ins></div>        <!--end navbar-->
+
+        <!-- content -->
+        <!-- section banner -->
+<section id="sobat-banner">
+    <h1 class="mb-4">Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API</h1>
+</section>
+<!-- end section banner -->
+
+<!-- section new article -->
+<section id="sobat-article" class="sobat-section" style="height: auto !important;">
+    <nav class="sobat-breadcrumb" aria-label="breadcrumb">
+        <ol class="breadcrumb mb-3">
+            <li class="breadcrumb-item active"><a href="https://sobatcoding.com/" class="text-primary">Home</a></li>
+            <li class="breadcrumb-item active"><a href="https://sobatcoding.com/articles" class="text-primary">Artikel</a></li>
+                        <li class="breadcrumb-item active"><a href="https://sobatcoding.com/articles?cat=laravel" class="text-primary">Laravel</a></li>
+                        <li class="breadcrumb-item " aria-current="page">Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API</li>
+        </ol>
+    </nav>
+
+    <div class="row" bis_skin_checked="1" style="height: auto !important;">
+        <div class="col-lg-8" bis_skin_checked="1" style="height: auto !important;">
+            <div class="content-section" id="article-detail" data-id="76" data-preview="false" bis_skin_checked="1" style="height: auto !important;">
+                
+                <div class="content-meta text-left" bis_skin_checked="1">
+                    <ul class="list-inline">
+                        <li class="list-inline-item text-dark"><i class="far fa-calendar-alt text-dark"></i>&nbsp;08 Apr 2022 12:15</li>
+                        <li class="list-inline-item text-dark"><i class="far fa-user text-dark"></i>&nbsp;Dipost oleh Admin</li>
+                        <li class="list-inline-item text-dark"><i class="far fa-eye text-dark"></i>&nbsp;1.192</li>
+                        <li class="list-inline-item text-dark"><i class="far fa-comment-alt text-dark"></i>&nbsp;0</li>
+                        <li class="list-inline-item text-dark">Share:&nbsp;
+                            <div class="box-share" bis_skin_checked="1">
+                                <a href="https://www.facebook.com/sharer/sharer.php?u=https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api&amp;t=Menggunakan%20JWT%20%28JSON%20Web%20Token%29%20Untuk%20Authentifikasi%20Pada%20Lumen%20API" rel="nofollow noopener" target="_blank" class="share-icon-circle "><i class="fab fa-facebook-f fb"></i></a>
+                                <a href="https://twitter.com/intent/tweet?text=%27Menggunakan%20JWT%20%28JSON%20Web%20Token%29%20Untuk%20Authentifikasi%20Pada%20Lumen%20API%20https%3A%2F%2Fsobatcoding.com%2Farticles%2Fmenggunakan-jwt-json-web-token-auth-pada-lumen-api" rel="nofollow noopener" target="_blank" class="share-icon-circle "><i class="fab fa-twitter twitter"></i></a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="content-img mt-3" bis_skin_checked="1">
+                    <img class="img-fluid lazy" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/lumen-laravel.jpg" data-original="https://cdn.sobatcoding.com/images/lumen-laravel.jpg" alt="Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API" width="1200" height="564" style="display: inline;">
+                </div>
+
+                <div class="content-text mb-5 text-left" bis_skin_checked="1" style="height: auto !important;">
+                    <p><strong>Sobatcoding.com</strong> - Tutorial Menggunakan JWT (JSON Web Token) Pada Lumen API</p>
+<p><strong>JWT </strong>(Json Web Token) adalah sebuah token menggunakan JSON (Javascript Object Notation), lalu token ini memungkinkan kita untuk mengirimkan data yang dapat diverifikasi oleh dua pihak atau lebih.</p><div class="google-auto-placed ap_container" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: auto; background-color: transparent; height: 280px;" data-ad-status="filled"><div id="aswift_2_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 280px; width: 784px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: visible;"><iframe id="aswift_2" name="aswift_2" style="left:0;position:absolute;top:0;border:0;width:784px;height:280px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="784" height="280" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(1).html" data-google-container-id="a!3" bis_size="{&quot;x&quot;:32,&quot;y&quot;:1296,&quot;w&quot;:784,&quot;h&quot;:280,&quot;abs_x&quot;:32,&quot;abs_y&quot;:1296}" bis_id="fr_j1vz8g8u5wc89tiklwdi8m" bis_depth="0" bis_chainid="2" data-google-query-id="CKK79NWruvoCFZS7lgodA10Ovg" data-load-complete="true"></iframe></div></ins></div>
+<p>JWT bisa kita gunakan sebagai authentifikasi saat akses ke sebuah REST API. Karena di dalam JWT dapat menyimpan informasi yang dibutuhkan (sperti informasi user) dan juga kita bisa set untuk expired dari token JWT tersebut.</p>
+<p>Bagaiamana cara penggunaan JWT dengan Lumen Laravel?&nbsp; Berikut langkah-langkahnya:</p>
+<p>&nbsp;</p>
+<h2>Step 1: Install JWT Lumen Package Via Composer</h2>
+<p>Jalankan perintah berikut untuk instal package jwt lumen:</p>
+<pre class=" language-css" tabindex="0"><code class=" language-css">composer require tymon/jwt-auth</code></pre>
+<h2>Step2 : Konfigurasi &amp; Register Package</h2>
+<p>Selanjutnya untuk config kita copy config file dari folder <code><span style="color: #e03e2d;">vendor/tymon/jwt-auth/config/config.php</span></code> ke folder config kemudian rename menjadi <span style="color: #e03e2d;">jwt.php<span style="color: #000000;">. Jika belum ada folder config buat terlebih dahulu folder config satu level dengan folder app.</span></span></p>
+<p>Selanjutnya kita register config tersebut dengan cara buka file <span style="color: #e03e2d;">app.php</span> di folder bootstrap, kemudian tambahkan kode berikut sebelum middleware:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token variable">$app</span><span class="token operator">-&gt;</span><span class="token function">configure</span><span class="token punctuation">(</span><span class="token string single-quoted-string">'jwt'</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>Tambahkan line berikut untuk register service jwt&nbsp;<span style="color: #6a9955; background-color: #1e1e1e; font-family: Consolas, &#39;Courier New&#39;, monospace; font-size: 14px; white-space: pre;">Register Service Providers</span>&nbsp; section.</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token comment">// Uncomment this line</span>
+<span class="token variable">$app</span><span class="token operator">-&gt;</span><span class="token function">register</span><span class="token punctuation">(</span><span class="token class-name class-name-fully-qualified static-context">App<span class="token punctuation">\</span>Providers<span class="token punctuation">\</span>AuthServiceProvider</span><span class="token operator">::</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">// Add this line</span>
+<span class="token variable">$app</span><span class="token operator">-&gt;</span><span class="token function">register</span><span class="token punctuation">(</span><span class="token class-name class-name-fully-qualified static-context">Tymon<span class="token punctuation">\</span>JWTAuth<span class="token punctuation">\</span>Providers<span class="token punctuation">\</span>LumenServiceProvider</span><span class="token operator">::</span><span class="token keyword">class</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<p>Un commnet juga line berikut:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token variable">$app</span><span class="token operator">-&gt;</span><span class="token function">routeMiddleware</span><span class="token punctuation">(</span><span class="token punctuation">[</span>
+    <span class="token string single-quoted-string">'auth'</span> <span class="token operator">=&gt;</span> <span class="token class-name class-name-fully-qualified static-context">App<span class="token punctuation">\</span>Http<span class="token punctuation">\</span>Middleware<span class="token punctuation">\</span>Authenticate</span><span class="token operator">::</span><span class="token keyword">class</span><span class="token punctuation">,</span>
+<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h2>Step 3: Generate Secret Key</h2>
+<p>Jalan kan perintah berikut untuk generate secret key</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php">php artisan jwt<span class="token punctuation">:</span>secret</code></pre>
+<p>Perintah di atas otomatis upadte file .env dengan JWT_SECRET=key</p>
+<p>&nbsp;</p>
+<h2>Step:4 Konfigurasi Auth</h2>
+<p>Tambahkan file auth.php dan simpan di folder config, kemudian tambahkan kode berikut:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token php language-php"><span class="token delimiter important">&lt;?php</span>
+
+<span class="token keyword">return</span> <span class="token punctuation">[</span>
+    <span class="token string single-quoted-string">'defaults'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+        <span class="token string single-quoted-string">'guard'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'api'</span><span class="token punctuation">,</span>
+        <span class="token string single-quoted-string">'passwords'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'users'</span><span class="token punctuation">,</span>
+    <span class="token punctuation">]</span><span class="token punctuation">,</span>
+
+    <span class="token string single-quoted-string">'guards'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+        <span class="token string single-quoted-string">'api'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+            <span class="token string single-quoted-string">'driver'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'jwt'</span><span class="token punctuation">,</span>
+            <span class="token string single-quoted-string">'provider'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'users'</span><span class="token punctuation">,</span>
+        <span class="token punctuation">]</span><span class="token punctuation">,</span>
+    <span class="token punctuation">]</span><span class="token punctuation">,</span>
+
+    <span class="token string single-quoted-string">'providers'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+        <span class="token string single-quoted-string">'users'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+            <span class="token string single-quoted-string">'driver'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'eloquent'</span><span class="token punctuation">,</span>
+            <span class="token string single-quoted-string">'model'</span> <span class="token operator">=&gt;</span> <span class="token class-name class-name-fully-qualified static-context"><span class="token punctuation">\</span>App<span class="token punctuation">\</span>Model<span class="token punctuation">\</span>Users</span><span class="token operator">::</span><span class="token keyword">class</span>
+        <span class="token punctuation">]</span>
+    <span class="token punctuation">]</span>
+<span class="token punctuation">]</span><span class="token punctuation">;</span>
+</span></code></pre>
+<p>Jangan lupa register juga untuk file auth.php</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token variable">$app</span><span class="token operator">-&gt;</span><span class="token function">configure</span><span class="token punctuation">(</span><span class="token string single-quoted-string">'auth'</span><span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h2>Step 5: Models</h2>
+<p>Buat sebuah model bernama Users dan simpan di folder app\Models, kemudian tambahkan kode berikut:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token php language-php"><span class="token delimiter important">&lt;?php</span>
+
+<span class="token keyword">namespace</span> <span class="token package">App<span class="token punctuation">\</span>Models</span><span class="token punctuation">;</span>
+
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Auth<span class="token punctuation">\</span>Authenticatable</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Contracts<span class="token punctuation">\</span>Auth<span class="token punctuation">\</span>Access<span class="token punctuation">\</span>Authorizable</span> <span class="token keyword">as</span> AuthorizableContract<span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Contracts<span class="token punctuation">\</span>Auth<span class="token punctuation">\</span>Authenticatable</span> <span class="token keyword">as</span> AuthenticatableContract<span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Database<span class="token punctuation">\</span>Eloquent<span class="token punctuation">\</span>Model</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Laravel<span class="token punctuation">\</span>Lumen<span class="token punctuation">\</span>Auth<span class="token punctuation">\</span>Authorizable</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Tymon<span class="token punctuation">\</span>JWTAuth<span class="token punctuation">\</span>Contracts<span class="token punctuation">\</span>JWTSubject</span><span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name-definition class-name">Users</span> <span class="token keyword">extends</span> <span class="token class-name">Model</span> <span class="token keyword">implements</span> <span class="token class-name">JWTSubject</span><span class="token punctuation">,</span> AuthenticatableContract<span class="token punctuation">,</span> AuthorizableContract
+<span class="token punctuation">{</span>
+    <span class="token keyword">use</span> <span class="token package">Authenticatable</span><span class="token punctuation">,</span> Authorizable<span class="token punctuation">;</span>
+    
+    <span class="token keyword">protected</span> <span class="token variable">$table</span> <span class="token operator">=</span> <span class="token string single-quoted-string">'m_users'</span><span class="token punctuation">;</span>
+    <span class="token comment">/**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */</span>
+    <span class="token keyword">protected</span> <span class="token variable">$fillable</span> <span class="token operator">=</span> <span class="token punctuation">[</span>
+        <span class="token string single-quoted-string">'username'</span><span class="token punctuation">,</span> <span class="token string single-quoted-string">'name'</span><span class="token punctuation">,</span> <span class="token string single-quoted-string">'address'</span><span class="token punctuation">,</span> <span class="token string single-quoted-string">'phone'</span>
+    <span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/**
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">function</span> <span class="token function-definition function">getJWTIdentifier</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token variable">$this</span><span class="token operator">-&gt;</span><span class="token function">getKey</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */</span>
+    <span class="token keyword">public</span> <span class="token keyword">function</span> <span class="token function-definition function">getJWTCustomClaims</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</span></code></pre>
+<p>&nbsp;</p>
+<h2>Step 6: Membuat Controller Login</h2>
+<p>Buat sebuah controller untuk generate token, sebagai contoh kita buat AuthController.php. Biasanya untuk auth menggunakan field email dan password tapi kali ini kita akan membuat auth JWT menggunakan username dan password. Untuk kode adalah sebagai berikut:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token php language-php"><span class="token delimiter important">&lt;?php</span>
+
+<span class="token keyword">namespace</span> <span class="token package">App<span class="token punctuation">\</span>Http<span class="token punctuation">\</span>Controllers</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Http<span class="token punctuation">\</span>Request</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Illuminate<span class="token punctuation">\</span>Support<span class="token punctuation">\</span>Facades<span class="token punctuation">\</span>Crypt</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">Validator</span><span class="token punctuation">;</span>
+<span class="token keyword">use</span> <span class="token package">App<span class="token punctuation">\</span>Models<span class="token punctuation">\</span>Users</span><span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name-definition class-name">AuthController</span> <span class="token keyword">extends</span> <span class="token class-name">Controller</span>
+<span class="token punctuation">{</span>
+    
+    <span class="token keyword">public</span> <span class="token keyword">function</span> <span class="token function-definition function">login</span><span class="token punctuation">(</span><span class="token class-name type-declaration">Request</span> <span class="token variable">$request</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        
+        <span class="token variable">$validator</span> <span class="token operator">=</span> <span class="token class-name static-context">Validator</span><span class="token operator">::</span><span class="token function">make</span><span class="token punctuation">(</span><span class="token variable">$request</span><span class="token operator">-&gt;</span><span class="token function">all</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">[</span>
+            <span class="token string single-quoted-string">'username'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'required|min:4'</span><span class="token punctuation">,</span>
+            <span class="token string single-quoted-string">'password'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'required|min:6'</span>
+        <span class="token punctuation">]</span><span class="token punctuation">,</span>
+        <span class="token punctuation">[</span>
+            <span class="token string single-quoted-string">'required'</span>  <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">':attribute harus diisi'</span><span class="token punctuation">,</span>
+            <span class="token string single-quoted-string">'min'</span>       <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">':attribute minimal :min karakter'</span><span class="token punctuation">,</span>
+        <span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token variable">$validator</span><span class="token operator">-&gt;</span><span class="token function">fails</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token variable">$resp</span> <span class="token operator">=</span> <span class="token punctuation">[</span>
+                <span class="token string single-quoted-string">'metadata'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+                        <span class="token string single-quoted-string">'message'</span> <span class="token operator">=&gt;</span> <span class="token variable">$validator</span><span class="token operator">-&gt;</span><span class="token function">errors</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">first</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        <span class="token string single-quoted-string">'code'</span>    <span class="token operator">=&gt;</span> <span class="token number">422</span>
+                    <span class="token punctuation">]</span>
+                <span class="token punctuation">]</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token function">response</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token variable">$resp</span><span class="token punctuation">,</span> <span class="token number">422</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">die</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token variable">$user</span> <span class="token operator">=</span> <span class="token class-name static-context">Users</span><span class="token operator">::</span><span class="token function">where</span><span class="token punctuation">(</span><span class="token string single-quoted-string">'username'</span><span class="token punctuation">,</span> <span class="token variable">$request</span><span class="token operator">-&gt;</span><span class="token property">username</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">first</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token variable">$user</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">if</span><span class="token punctuation">(</span> <span class="token class-name static-context">Crypt</span><span class="token operator">::</span><span class="token function">decrypt</span><span class="token punctuation">(</span><span class="token variable">$user</span><span class="token operator">-&gt;</span><span class="token property">password</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token variable">$request</span><span class="token operator">-&gt;</span><span class="token property">password</span><span class="token punctuation">)</span>
+            <span class="token punctuation">{</span>
+                
+                <span class="token variable">$token</span> <span class="token operator">=</span> <span class="token class-name class-name-fully-qualified static-context"><span class="token punctuation">\</span>Auth</span><span class="token operator">::</span><span class="token function">login</span><span class="token punctuation">(</span><span class="token variable">$user</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token variable">$resp</span> <span class="token operator">=</span> <span class="token punctuation">[</span>
+                    <span class="token string single-quoted-string">'response'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+                        <span class="token string single-quoted-string">'token'</span><span class="token operator">=&gt;</span> <span class="token variable">$token</span>  
+                    <span class="token punctuation">]</span><span class="token punctuation">,</span>
+                    <span class="token string single-quoted-string">'metadata'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+                        <span class="token string single-quoted-string">'message'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'OK'</span><span class="token punctuation">,</span>
+                        <span class="token string single-quoted-string">'code'</span>    <span class="token operator">=&gt;</span> <span class="token number">200</span>
+                    <span class="token punctuation">]</span>
+                <span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+                <span class="token keyword">return</span> <span class="token function">response</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token variable">$resp</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span><span class="token keyword">else</span><span class="token punctuation">{</span>
+
+                <span class="token variable">$resp</span> <span class="token operator">=</span> <span class="token punctuation">[</span>
+                    <span class="token string single-quoted-string">'metadata'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+                        <span class="token string single-quoted-string">'message'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'Username Atau Password Tidak Sesuai'</span><span class="token punctuation">,</span>
+                        <span class="token string single-quoted-string">'code'</span>    <span class="token operator">=&gt;</span> <span class="token number">401</span>
+                    <span class="token punctuation">]</span>
+                <span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+                <span class="token keyword">return</span> <span class="token function">response</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token variable">$resp</span><span class="token punctuation">,</span> <span class="token number">401</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span><span class="token keyword">else</span><span class="token punctuation">{</span>
+            <span class="token variable">$resp</span> <span class="token operator">=</span> <span class="token punctuation">[</span>
+                <span class="token string single-quoted-string">'metadata'</span> <span class="token operator">=&gt;</span> <span class="token punctuation">[</span>
+                    <span class="token string single-quoted-string">'message'</span> <span class="token operator">=&gt;</span> <span class="token string single-quoted-string">'Username Atau Password Tidak Sesuai'</span><span class="token punctuation">,</span>
+                    <span class="token string single-quoted-string">'code'</span>    <span class="token operator">=&gt;</span> <span class="token number">401</span>
+                <span class="token punctuation">]</span>
+            <span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">return</span> <span class="token function">response</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-&gt;</span><span class="token function">json</span><span class="token punctuation">(</span><span class="token variable">$resp</span><span class="token punctuation">,</span> <span class="token number">401</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+    <span class="token punctuation">}</span>
+
+<span class="token punctuation">}</span>
+</span></code></pre>
+<p>&nbsp;</p>
+<h2>Step 7: Route Baru</h2>
+<p>Tambahkan route baru seperti berikut:</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token variable">$router</span><span class="token operator">-&gt;</span><span class="token function">post</span><span class="token punctuation">(</span><span class="token string single-quoted-string">'/login'</span><span class="token punctuation">,</span> <span class="token string single-quoted-string">'AuthController@login'</span> <span class="token punctuation">)</span><span class="token punctuation">;</span></code></pre>
+<h2>Step 8: Uji Test API</h2>
+<p>Dan berikut hasil saat kita jalankan dan uji test menggunakan postman:</p>
+<p><img src="data:image/png;base64,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"></p>
+<p>Token yang ter generate adalah :</p>
+<pre class=" language-php" tabindex="0"><code class=" language-php">eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9<span class="token operator">.</span>eyJpc3MiOiJodHRwOlwvXC9sb2NhbGhvc3Q6ODA4MFwvbG9naW4iLCJpYXQiOjE2NDkzOTEyNzYsImV4cCI6MTY0OTM5NDg3NiwibmJmIjoxNjQ5MzkxMjc2LCJqdGkiOiIwRzFDdzFjMjJJcEw2T2YxIiwic3ViIjoxLCJwcnYiOiJmNjRkNDhhNmNlYzdiZGZhN2ZiZjg5OTQ1NGI0ODhiM2U0NjI1MjBhIn0<span class="token operator">.</span><span class="token number">8</span>P7U1RAQKWz_YXXteqbl<span class="token operator">-</span>q7t33Pap6WeHkrw5cvp7AY</code></pre>
+<p>&nbsp;</p>
+<p>Untuk menambahkan atau set expired time token JWT kita bisa edit di file <span style="color: #e03e2d;">config/jwt.php</span> pada line berikut.</p><div class="google-auto-placed ap_container" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: auto; background-color: transparent; height: 0px;" data-ad-status="unfilled"><div id="aswift_3_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 784px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: hidden; opacity: 0;"><iframe id="aswift_3" name="aswift_3" style="left: 0px; position: absolute; top: 0px; border: 0px; width: 784px; height: 0px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="784" height="0" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(2).html" data-google-container-id="a!4" data-google-query-id="CK28p-eruvoCFUi8lgod8SII9w" data-load-complete="true"></iframe></div></ins></div>
+<pre class=" language-php" tabindex="0"><code class=" language-php"><span class="token comment">/*
+    |--------------------------------------------------------------------------
+    | JWT time to live
+    |--------------------------------------------------------------------------
+    |
+    | Specify the length of time (in minutes) that the token will be valid for.
+    | Defaults to 1 hour.
+    |
+    | You can also set this to null, to yield a never expiring token.
+    | Some people may want this behaviour for e.g. a mobile app.
+    | This is not particularly recommended, so make sure you have appropriate
+    | systems in place to revoke the token if necessary.
+    | Notice: If you set this to null you should remove 'exp' element from 'required_claims' list.
+    |
+    */</span>
+
+    <span class="token string single-quoted-string">'ttl'</span> <span class="token operator">=&gt;</span> <span class="token function">env</span><span class="token punctuation">(</span><span class="token string single-quoted-string">'JWT_TTL'</span><span class="token punctuation">,</span> <span class="token number">60</span><span class="token punctuation">)</span><span class="token punctuation">,</span></code></pre><div class="google-auto-placed ap_container" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: auto; background-color: transparent; height: 0px;" data-ad-status="unfilled"><div id="aswift_4_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 784px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: hidden; opacity: 0;"><iframe id="aswift_4" name="aswift_4" style="left: 0px; position: absolute; top: 0px; border: 0px; width: 784px; height: 0px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="784" height="0" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(3).html" data-google-container-id="a!5" data-google-query-id="CKDareeruvoCFfHJFgUdZygEIw" data-load-complete="true"></iframe></div></ins></div>
+<p>Untuk default expired time token JWT adalah dalam menit yaitu 60 menit. Kalian bisa ubah sesuai kebutuhan kalian.</p><div class="google-auto-placed ap_container" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: auto; background-color: transparent; height: 0px;" data-ad-status="unfilled"><div id="aswift_5_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 784px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: hidden; opacity: 0;"><iframe id="aswift_5" name="aswift_5" style="left: 0px; position: absolute; top: 0px; border: 0px; width: 784px; height: 0px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="784" height="0" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(4).html" data-google-container-id="a!6" data-google-query-id="COvBsOeruvoCFb7EFgUdVdoOBA" data-load-complete="true"></iframe></div></ins></div>
+<p>&nbsp;</p>
+<p>Untuk full source code bisa kalian cek di link berikut: <a href="https://github.com/sobatcoding21/Lumen-API/" target="_blank" rel="noopener">https://github.com/sobatcoding21/Lumen-API/</a></p>
+<p>&nbsp;</p>
+<p>Sekian tutorial kali ini dan semoga bermanfaat.</p>             
+                </div>
+
+                                <div class="content-tags mb-5 text-dark text-left" bis_skin_checked="1">
+                    <p class="mb-3"><i class="lni lni-tag"></i> TAGS</p>
+                    <ul class="list-inline">
+                                                <li class="list-inline-item mb-3"><span class="p-2 border rounded">JWT Token</span></li>
+                                                <li class="list-inline-item mb-3"><span class="p-2 border rounded">JWT Lumen</span></li>
+                                            </ul>
+                </div>
+                                <hr>
+            </div>
+
+                        <div class="sobat-comment" bis_skin_checked="1">
+                                <div class="comment-login" bis_skin_checked="1">
+                    <a href="https://accounts.google.com/o/oauth2/auth?response_type=code&amp;access_type=online&amp;client_id=547444192993-fscbgo98ikjgkt0g7isnij72asq4gl0u.apps.googleusercontent.com&amp;redirect_uri=https%3A%2F%2Fsobatcoding.com%2Fauth_google&amp;state&amp;scope=email%20profile&amp;approval_prompt=auto&amp;rdr=https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api" class="btn btn-danger" id="login-google"><i class="fab fa-google"></i> LOGIN WITH GOOGLE</a>
+                </div>
+                                
+                <h6 class="mt-4 text-dark">Komentar 0</h6>
+                <div id="sobat-comment-article" data-url-comment="https://sobatcoding.com/list-comments-article/menggunakan-jwt-json-web-token-auth-pada-lumen-api" bis_skin_checked="1"><div class="sobat-comments mt-5 mb-4" bis_skin_checked="1">
+    
+    
+</div></div>
+                
+            </div>
+                        
+
+            <div class="sobat-section text-left p-0" bis_skin_checked="1">
+                <h3 class="section-title underline clearfix">Artikel Terbaru</h3>
+                <div class="row" bis_skin_checked="1">
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/flutter-360x180.jpg" alt="Cara  Cetak Atau Print Menggunakan Flutter">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=flutter-android"><span class="card-category">Flutter Android</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/cara-cetak-atau-print-menggunakan-flutter">Cara  Cetak Atau Print Menggunakan Flutter</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/small-cover-bmkg-flutter.webp" alt="Membuat Aplikasi Mobile Info Cuaca Menggunakan Data BMKG">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=flutter-android"><span class="card-category">Flutter Android</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/membuat-aplikasi-mobile-info-cuaca-menggunakan-data-bmkg">Membuat Aplikasi Mobile Info Cuaca Menggunakan Data BMKG</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/flutter-360x180.jpg" alt="Membuat Splash Screen Sederhana di Flutter">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=flutter-android"><span class="card-category">Flutter Android</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/membuat-splash-screen-sederhana-di-flutter">Membuat Splash Screen Sederhana di Flutter</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/big-problem-solve.jpg" alt="Axios POST Cors Problem di Codeigniter 3">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=problem-solving"><span class="card-category">Problem Solving</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/axios-post-cors-problem-di-codeigniter-3">Axios POST Cors Problem di Codeigniter 3</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/small-cover-vue-crud.webp" alt="Step 2: Vue 2 JS Membuat CRUD Sederhana dengan Vuetify dan Axios">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=vue-js"><span class="card-category">Vue JS</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/step-2-vue-2-js-membuat-crud-sederhana-dengan-vuetify-dan-axios">Step 2: Vue 2 JS Membuat CRUD Sederhana dengan Vuetify dan Axios</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/small-problem-solving.jpg" alt="Vue Error : PS1 Can Not Be Loaded Because Running Scripts Is Disabled">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=problem-solving"><span class="card-category">Problem Solving</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/vue-error-ps1-can-not-be-loaded-because-running-scripts-is-disabled">Vue Error : PS1 Can Not Be Loaded Because Running Scripts Is Disabled</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/cover-sm-vue-js.webp" alt="Step 1 : Cara mudah Install Vue 2 Js ">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=vue-js"><span class="card-category">Vue JS</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/step-1-cara-mudah-install-vue-js">Step 1 : Cara mudah Install Vue 2 Js </a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <div class="col-lg-3" bis_skin_checked="1">
+                        <div class="sobat-card sobat-sm text-center" bis_skin_checked="1">
+                            <figure>
+                                <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/small-html-css-js-logo.jpg" alt="Membuat Form Input Hanya Angka dan Desimal - Javascript &amp; Jquery">
+                            </figure>
+                            <div class="card-body" bis_skin_checked="1">
+                                <a href="https://sobatcoding.com/articles?cat=javascript"><span class="card-category">Javascript</span></a>
+                                <h3 class="card-title"><a href="https://sobatcoding.com/articles/membuat-form-input-hanya-angka-dan-desimal-javascript-jquery">Membuat Form Input Hanya Angka dan Desimal - Javascript &amp; Jquery</a></h3>
+                            </div>
+                        </div>
+                    </div>
+
+                                    </div>
+            </div>
+        </div>
+        <div class="col-lg-4" bis_skin_checked="1" style="height: auto !important;">
+            <div class="widget-right border-bottom" bis_skin_checked="1">
+                <h2 class="widget-caption text-uppercase">Artikel Terkait Lainnya</h2>
+                <ul>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/menambahkan-cors-middleware-di-lumen-rest-api"><span class="badge bg-light text-secondary">130&nbsp;views</span>Menambahkan CORS Middleware di Lumen REST API</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/membuat-rest-api-menggunakan-lumen-laravel"><span class="badge bg-light text-secondary">433&nbsp;views</span>Membuat REST API Menggunakan Lumen Laravel</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/cara-membuat-route-di-laravel-8"><span class="badge bg-light text-secondary">463&nbsp;views</span>Tutorial Laravel Cara Membuat Route Di Laravel 8</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/laravel-tutorial-membuat-dan-migrasi-database-menggunakan-migration"><span class="badge bg-light text-secondary">864&nbsp;views</span>Tutorial Laravel Cara Migration Laravel</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/panduan-setting-database-di-laravel"><span class="badge bg-light text-secondary">90&nbsp;views</span>Panduan Setting Database di Laravel</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/cara-install-laravel-8"><span class="badge bg-light text-secondary">456&nbsp;views</span>Cara Install Laravel 8 Menggunakan Composer</a></li>
+                                    </ul>                 
+            </div>
+
+            <div class="widget-right border-bottom" bis_skin_checked="1">
+                <h2 class="widget-caption text-uppercase">Artikel Populer lainnya</h2>
+                <ul>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/flutter-membuat-form-login-dan-logout-menggunakan-rest-api"><span class="badge bg-light text-secondary">4.806&nbsp;views</span>Flutter Membuat Form Login dan Logout Menggunakan REST API</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/cara-menjalankan-codeigniter-4-di-xampp-atau-laragon"><span class="badge bg-light text-secondary">2.551&nbsp;views</span>CodeIgniter 4 : Cara Menjalankan CodeIgniter 4 di Xampp atau Laragon</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/direct-printing-menggunakan-php"><span class="badge bg-light text-secondary">2.395&nbsp;views</span>Direct Printing menggunakan PHP</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/menghitung-luas-bangun-datar-dengan-php"><span class="badge bg-light text-secondary">1.568&nbsp;views</span>Menghitung Luas Bangun Datar dengan PHP</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/cara-mudah-membuat-website-menjadi-pwa"><span class="badge bg-light text-secondary">1.386&nbsp;views</span>Cara Mudah Membuat Website Menjadi Progressive Web Application (PWA)</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/flutter-menampilkan-data-json-api-ke-list-view"><span class="badge bg-light text-secondary">1.356&nbsp;views</span>Flutter Menampilkan Data JSON API Ke ListView</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/cara-menghitung-jarak-antara-dua-titik-koordinat-di-php"><span class="badge bg-light text-secondary">1.337&nbsp;views</span>Cara Menghitung Jarak Antara Dua Titik Koordinat di PHP</a></li>
+                                        <li class="item-article"><a href="https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api"><span class="badge bg-light text-secondary">1.186&nbsp;views</span>Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API</a></li>
+                                    </ul>
+            </div><div class="google-auto-placed" bis_skin_checked="1" style="width: 100%; height: auto; clear: both; text-align: center;"><ins data-ad-format="auto" class="adsbygoogle adsbygoogle-noablate" data-ad-client="ca-pub-9830814946391667" data-adsbygoogle-status="done" style="display: block; margin: 10px auto 35px; background-color: transparent; height: 0px;" data-ad-status="unfilled"><div id="aswift_6_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 390px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: hidden; opacity: 0;"><iframe id="aswift_6" name="aswift_6" style="left: 0px; position: absolute; top: 0px; border: 0px; width: 390px; height: 0px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="390" height="0" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(5).html" data-google-container-id="a!7" bis_size="{&quot;x&quot;:871,&quot;y&quot;:1490,&quot;w&quot;:390,&quot;h&quot;:280,&quot;abs_x&quot;:871,&quot;abs_y&quot;:1490}" bis_id="fr_duy3zhied3884rgegqrnhg" bis_depth="0" bis_chainid="3" data-google-query-id="CNep9tWruvoCFciXlgod1bwJEA" data-load-complete="true"></iframe></div></ins></div>
+
+            <div class="widget-right border-bottom" bis_skin_checked="1">
+                <h2 class="widget-caption text-uppercase">Produk unggulan</h2>
+                                <a href="https://sobatcoding.com/products/aplikasi-penjualan-kasir-pos-cocok-untuk-warung-makan">
+                    </a><div class="media mb-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/aplikasi-penjualan-kasir-pos-cocok-untuk-warung-makan">
+                        <figure class="mb-0" style="width:120px;height:80px">
+                            <img class="mr-3 img-fluid lazy" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/5-aplikasi-penjualan-kasir-pos-cocok-untuk-warung-makan-6108fffb978ce.webp" alt="Aplikasi Penjualan Kasir POS E-Warung">
+                        </figure>
+                        </a><div class="media-body pl-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/aplikasi-penjualan-kasir-pos-cocok-untuk-warung-makan">
+                            <h3 class="widget-title">Aplikasi Penjualan Kasir POS E-Warung</h3>
+                            </a><a class="btn btn-success btn-sm" href="https://api.whatsapp.com/send?phone=+6281331989882&amp;text=Terimakasih%20telah%20menghubungi%20Sahabat%20Coding.%20Saya%20ingin%20tahu%20informasi%20mengenai%20produk%20Aplikasi%20Penjualan%20Kasir%20POS%20E-Warung" target="_blank">Order Sekarang</a>
+                        </div>
+                    </div>
+                
+                                <a href="https://sobatcoding.com/products/aplikasi-kasir-sobat-pos-point-of-sale-v1">
+                    </a><div class="media mb-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/aplikasi-kasir-sobat-pos-point-of-sale-v1">
+                        <figure class="mb-0" style="width:120px;height:80px">
+                            <img class="mr-3 img-fluid lazy" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/3-aplikasi-kasir-sobat-pos-point-of-sale-v1-60caff9da649f.webp" alt="Aplikasi Kasir Sobat POS (Point of Sale) V.1">
+                        </figure>
+                        </a><div class="media-body pl-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/aplikasi-kasir-sobat-pos-point-of-sale-v1">
+                            <h3 class="widget-title">Aplikasi Kasir Sobat POS (Point of Sale) V.1</h3>
+                            </a><a class="btn btn-success btn-sm" href="https://api.whatsapp.com/send?phone=+6281331989882&amp;text=Terimakasih%20telah%20menghubungi%20Sahabat%20Coding.%20Saya%20ingin%20tahu%20informasi%20mengenai%20produk%20Aplikasi%20Kasir%20Sobat%20POS%20(Point%20of%20Sale)%20V.1" target="_blank">Order Sekarang</a>
+                        </div>
+                    </div>
+                
+                                <a href="https://sobatcoding.com/products/article-mesin-antrian">
+                    </a><div class="media mb-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/article-mesin-antrian">
+                        <figure class="mb-0" style="width:120px;height:80px">
+                            <img class="mr-3 img-fluid lazy" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/1-article-mesin-antrian-60b9e80a59fff.webp" alt="Mesin Antrian Berbasis Web Browser">
+                        </figure>
+                        </a><div class="media-body pl-2" bis_skin_checked="1"><a href="https://sobatcoding.com/products/article-mesin-antrian">
+                            <h3 class="widget-title">Mesin Antrian Berbasis Web Browser</h3>
+                            </a><a class="btn btn-success btn-sm" href="https://api.whatsapp.com/send?phone=+6281331989882&amp;text=Terimakasih%20telah%20menghubungi%20Sahabat%20Coding.%20Saya%20ingin%20tahu%20informasi%20mengenai%20produk%20Mesin%20Antrian%20Berbasis%20Web%20Browser" target="_blank">Order Sekarang</a>
+                        </div>
+                    </div>
+                
+                            </div>
+            
+            <div class="widget-right sticky-top" style="top: 8px;z-index: 1040;" bis_skin_checked="1">
+    <h3 class="widget-caption text-uppercase">Artikel Kategori</h3>
+    <ul class="pl-0 list-unstyled">
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=codeigniter"><i class="fas fa-tag"></i>&nbsp;CodeIgniter&nbsp;(20)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=electron"><i class="fas fa-tag"></i>&nbsp;Electron&nbsp;(2)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=flutter-android"><i class="fas fa-tag"></i>&nbsp;Flutter Android&nbsp;(15)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=javascript"><i class="fas fa-tag"></i>&nbsp;Javascript&nbsp;(8)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=laravel"><i class="fas fa-tag"></i>&nbsp;Laravel&nbsp;(7)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=node"><i class="fas fa-tag"></i>&nbsp;Node JS&nbsp;(5)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=php"><i class="fas fa-tag"></i>&nbsp;PHP&nbsp;(13)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=problem-solving"><i class="fas fa-tag"></i>&nbsp;Problem Solving&nbsp;(8)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=tutorial"><i class="fas fa-tag"></i>&nbsp;Tutorial&nbsp;(14)</a></li>
+                <li class="mb-2"><a href="https://sobatcoding.com/articles?cat=vue-js"><i class="fas fa-tag"></i>&nbsp;Vue JS&nbsp;(2)</a></li>
+            </ul>
+</div>        
+        </div>
+    </div>
+</section>
+<!-- section content -->        <!-- end content -->
+
+        <!-- section footer -->
+        <footer>
+    <section id="sobat-footer">
+        <div class="container" bis_skin_checked="1">
+            <div class="row" bis_skin_checked="1">
+                <div class="col-lg-5 col-md-6 col-sm-6 col-xs-6 col-mb-12" bis_skin_checked="1">
+                    <ul class="list-inline">
+                        <li class="list-inline-item circle-icon-footer"><i class="fab fa-php"></i></li>
+                        <li class="list-inline-item circle-icon-footer"><i class="fab fa-html5"></i></li>
+                        <li class="list-inline-item circle-icon-footer"><i class="fab fa-android"></i></li>
+                        <li class="list-inline-item circle-icon-footer"><i class="fab fa-laravel"></i></li>
+                        <li class="list-inline-item circle-icon-footer"><i class="fab fa-free-code-camp"></i></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2 col-md-6 col-sm-6 col-xs-6 col-mb-12" bis_skin_checked="1">
+                    <h4>Kategori Artikel</h4>
+                    <ul class="pl-3">
+                                                <li><a href="https://sobatcoding.com/articles?cat=codeigniter" class="text-white">CodeIgniter</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=electron" class="text-white">Electron</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=flutter-android" class="text-white">Flutter Android</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=javascript" class="text-white">Javascript</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=laravel" class="text-white">Laravel</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=node" class="text-white">Node JS</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=php" class="text-white">PHP</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=problem-solving" class="text-white">Problem Solving</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=tutorial" class="text-white">Tutorial</a></li>
+                                                <li><a href="https://sobatcoding.com/articles?cat=vue-js" class="text-white">Vue JS</a></li>
+                                            </ul>
+                </div>
+                <div class="col-lg-2 col-md-6 col-sm-6 col-xs-6 col-mb-12" bis_skin_checked="1">
+                    <h4>Populer</h4>
+                    <ul class="pl-3">
+                        <li><a href="https://sobatcoding.com/articles" class="text-white">Artikel</a></li>
+                        <li><a href="https://sobatcoding.com/products" class="text-white">Produk</a></li>
+                        <li><a href="https://sobatcoding.com/services" class="text-white">Service</a></li>
+                        <li><a href="https://sobatcoding.com/sitemap.xml" target="_blank" class="text-white">Sitemap</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-6 col-sm-6 col-xs-6 col-mb-12" bis_skin_checked="1">
+                    <div class="footer-logo" bis_skin_checked="1">
+                        <img src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/logo-bg.png" alt="sobatcoding.com" width="150">
+                    </div>
+                    <ul class="pl-0 list-unstyled">
+                        <li>Tlp/Wa : +6281 3319 89882</li>
+                        <li>
+                            <ul class="list-inline">
+                                <li class="list-inline-item"><a class="text-white" title="Instagram @sobatcoding.com" href="https://www.instagram.com/sobatcoding21/" target="_blank"><i class="fab fa-instagram"></i></a></li>
+                                <li class="list-inline-item"><a class="text-white" title="Github sobatcoding.com" href="https://github.com/sobatcoding21" target="_blank"><i class="fab fa-github"></i></a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="copyright" bis_skin_checked="1">©2022 sobatcoding.com</div>
+    </section>
+</footer>
+        <a id="back-top" href="https://sobatcoding.com/articles/menggunakan-jwt-json-web-token-auth-pada-lumen-api#" style="display: inline;">
+            <i class="fas fa-arrow-up"></i>
+        </a>
+
+        <script>
+            var BASE_URL = 'https://sobatcoding.com/';
+            document.addEventListener('DOMContentLoaded', init, false);
+
+            function init() {
+                if ('serviceWorker' in navigator && navigator.onLine) {
+                    navigator.serviceWorker.register( BASE_URL + 'sw3.js')
+                    .then((reg) => {
+                        console.log('Registrasi service worker Berhasil', reg);
+                    }, (err) => {
+                        console.error('Registrasi service worker Gagal', err);
+                    });
+                }
+            }
+        </script>
+        <script src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/appv2.js" async=""></script>
+    
+<ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" style="display: none !important;" data-ad-status="unfilled"><div id="aswift_0_host" bis_skin_checked="1" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 0px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block;"><iframe id="aswift_0" name="aswift_0" style="left:0;position:absolute;top:0;border:0;width:undefinedpx;height:undefinedpx;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/ads(6).html" data-google-container-id="a!1" data-load-complete="true"></iframe></div></ins><script>(() => {
+        window.addoncropExtensions = window.addoncropExtensions || [];
+        window.addoncropExtensions.push({
+            mode: 'emulator',
+            emulator: 'Foxified',
+            extension: {
+                id: 44,
+                name: 'YouTube Downloader by Addoncrop',
+                version: '17.2.7',
+                date: 'April 11, 2022',
+            },
+            flixmateConnected: false,
+        });
+    })();</script><iframe src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/aframe.html" width="0" height="0" style="display: none;" bis_size="{&quot;x&quot;:0,&quot;y&quot;:0,&quot;w&quot;:0,&quot;h&quot;:0,&quot;abs_x&quot;:0,&quot;abs_y&quot;:0}"></iframe><iframe src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/saved_resource.html" style="display: none;"></iframe></body><iframe id="google_esf" name="google_esf" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/zrt_lookup.html" style="display: none;"></iframe><ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" style="display: none !important; width: 100vw !important; height: 100vh !important; inset: 0px auto auto 0px !important; clear: none !important; float: none !important; margin: 0px !important; max-height: none !important; max-width: none !important; opacity: 1 !important; overflow: visible !important; padding: 0px !important; position: fixed !important; vertical-align: baseline !important; visibility: visible !important; z-index: 2147483647 !important; background: transparent !important;" aria-hidden="true" data-ad-status="filled" data-vignette-loaded="true"><div id="aswift_7_host" tabindex="0" title="Advertisement" aria-label="Advertisement" bis_skin_checked="1" style="border: none !important; height: 100vh !important; width: 100vw !important; margin: 0px !important; padding: 0px !important; position: relative !important; visibility: visible !important; background-color: transparent !important; display: inline-block !important; inset: auto !important; clear: none !important; float: none !important; max-height: none !important; max-width: none !important; opacity: 1 !important; overflow: visible !important; vertical-align: baseline !important; z-index: auto !important;"><iframe id="aswift_7" name="aswift_7" style="width: 100vw !important; height: 100vh !important; inset: 0px auto auto 0px !important; position: absolute !important; clear: none !important; display: inline !important; float: none !important; margin: 0px !important; max-height: none !important; max-width: none !important; opacity: 1 !important; overflow: visible !important; padding: 0px !important; vertical-align: baseline !important; visibility: visible !important; z-index: auto !important;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="" height="" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./Menggunakan JWT (JSON Web Token) Untuk Authentifikasi Pada Lumen API_files/zrt_lookup(1).html" data-google-container-id="a!8" data-google-query-id="CODBgImruvoCFZaQcAodXrsEIA" data-load-complete="true"></iframe></div></ins></html>

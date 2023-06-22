@@ -1,0 +1,119 @@
+openapi: '3.0.2'
+info:
+  title: Dokumentasi API Wisata
+  version: '0.1'
+servers:
+  - url: http://localhost/json/server
+paths:
+  /wisata:
+    get:
+      description: ambil seluruh data
+      responses:
+        '200':
+          description: OK,sukses
+          content: 
+            application/json:
+              schema: 
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wisata'
+    post:
+      description: insert data
+      requestBody:
+        content: 
+          application/json:
+            schema:
+              $ref: '#/components/schemas/insertWisata'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/insertWisata'
+      responses:
+        '200':
+          description: data sukses diinsert
+          content: 
+            application/json:
+              schema: 
+                  $ref: '#/components/schemas/Wisata'
+
+  /wisata/{id}:
+    get:
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: ambil seluruh data
+      responses:
+        '200':
+          description: OK,sukses
+          content: 
+            application/json:
+              schema: 
+                $ref: '#/components/schemas/Wisata'
+    put:
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: ambil seluruh data
+      responses:
+        '200':
+          description: OK,sukses
+          content: 
+            application/json:
+              schema: 
+                $ref: '#/components/schemas/Wisata'
+    delete:
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: id_wisata
+        schema:
+          type: integer
+          format: int64
+      description: ambil seluruh data
+      responses:
+        '200':
+          description: OK,sukses
+          content: 
+            application/json:
+              schema: 
+                $ref: '#/components/schemas/Wisata'
+
+components:
+  schemas:
+    Wisata:
+      type: object
+      properties:
+        id_wisata:
+          type: integer
+          example: 1
+        kota:
+          type: string
+          example: SEMARANG
+        landmark:
+          type: string
+          example: LAWANG SEWU
+        tarif:
+          type: string
+          example: '500000'
+    insertWisata:
+      type: object
+      properties:
+        kota:
+          type: string
+          example: SEMARANG
+        landmark:
+          type: string
+          example: LAWANG SEWU
+        tarif:
+          type: string
+          example: '500000'

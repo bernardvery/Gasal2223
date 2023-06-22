@@ -1,0 +1,2604 @@
+<!DOCTYPE html>
+<!-- saved from url=(0083)https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o -->
+<html lang="en" class="js-focus-visible" data-js-focus-visible="" crosspilot=""><script type="text/javascript" async="" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/js"></script><script async="" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/analytics.js"></script><script async="" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/analytics.js"></script><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>
+How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩‍💻👨‍💻</title>
+      <meta name="last-updated" content="2022-09-29 10:18:29 UTC">
+      <meta name="user-signed-in" content="false">
+      <meta name="head-cached-at" content="1664446709">
+        <!-- Experimental web monetization payment pointer for micropayments -->
+        <!-- It lets readers make micropayments to websites they visit. -->
+        <!-- This is step 1: Get live in production to test for platform-wide payment pointer. -->
+        <!-- Step 2: Allow authors to set their payment pointer so they can directly monetize their content based on visitors. -->
+        <!-- Step 3: Enable further functionality based on what we learn from this experimentation and how the ecosystem evolves. -->
+        <meta name="monetization" content="$ilp.uphold.com/24HhrUGG7ekn">
+      <meta name="environment" content="production">
+      <link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/minimal-5b7906f8aca74447068af5f8677182f4484365f08317cfdd7215fd38bcceaeb2.css" media="all" id="main-minimal-stylesheet">
+<link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/views-adcc9bb9e58066597a2bf176ff2c7ff32e4557b39b23a321e1bea133abbbfd2e.css" media="all" id="main-views-stylesheet">
+<link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/crayons-e9fbb78d890e905ed5296a60d0ca4546c541a785d89ce88512a478702abb496f.css" media="all" id="main-crayons-stylesheet">
+
+      <script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/base-17438d9007101ffffff4393609cc97839f6d746e0020d0d36a669f4d95564f65.js" defer="defer"></script>
+        <script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_base-c231ae51fd03dc16a85e.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/base-1cb38ab8f37a7c154d86.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_Search-85895e0c7f6c8dea46be.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/0-f48a6a10b4b68e0b68df.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/1-98874fa8a5b1eab6b54e.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/Search-02edd2e76d56b99f0942.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_runtimeBanner-500e78c4ef444f101304.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtimeBanner-6ca3e22e22fb9a1d522b.chunk.js" defer="defer"></script>
+      
+    <link rel="canonical" href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+    <meta name="description" content="Lumen is a the stunningly fast micro-framework by Laravel built to deliver microservices and...">
+    <meta name="keywords" content="software, coding, development, engineering, inclusive, community">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+    <meta property="og:title" content="
+How to build a JWT Authenticated API with Lumen (8.3.1)">
+    <meta property="og:description" content="Lumen is a the stunningly fast micro-framework by Laravel built to deliver microservices and...">
+    <meta property="og:site_name" content="DEV Community 👩‍💻👨‍💻">
+    <meta name="twitter:site" content="@thepracticaldev">
+    <meta name="twitter:creator" content="@">
+    <meta name="twitter:title" content="
+How to build a JWT Authenticated API with Lumen (8.3.1)">
+    <meta name="twitter:description" content="Lumen is a the stunningly fast micro-framework by Laravel built to deliver microservices and...">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:widgets:new-embed-design" content="on">
+    <meta name="robots" content="max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+      <meta property="og:image" content="https://dev.to/social_previews/article/916341.png">
+      <meta name="twitter:image:src" content="https://dev.to/social_previews/article/916341.png">
+
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+      <link rel="icon" type="image/x-icon" href="https://res.cloudinary.com/practicaldev/image/fetch/s--E8ak4Hr1--/c_limit,f_auto,fl_progressive,q_auto,w_32/https://dev-to.s3.us-east-2.amazonaws.com/favicon.ico">
+      <link rel="apple-touch-icon" href="https://res.cloudinary.com/practicaldev/image/fetch/s--gDM0_LTS--/c_limit,f_png,fl_progressive,q_80,w_180/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png">
+      <link rel="apple-touch-icon" sizes="152x152" href="https://res.cloudinary.com/practicaldev/image/fetch/s--l0c3Kmql--/c_limit,f_png,fl_progressive,q_80,w_152/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png">
+      <link rel="apple-touch-icon" sizes="180x180" href="https://res.cloudinary.com/practicaldev/image/fetch/s--gDM0_LTS--/c_limit,f_png,fl_progressive,q_80,w_180/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png">
+      <link rel="apple-touch-icon" sizes="167x167" href="https://res.cloudinary.com/practicaldev/image/fetch/s--2ecYCSjC--/c_limit,f_png,fl_progressive,q_80,w_167/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png">
+      <link href="https://res.cloudinary.com/practicaldev/image/fetch/s--t7tVouP9--/c_limit,f_png,fl_progressive,q_80,w_192/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png" rel="icon" sizes="192x192">
+      <link href="https://res.cloudinary.com/practicaldev/image/fetch/s--lrmEcD2H--/c_limit,f_png,fl_progressive,q_80,w_128/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png" rel="icon" sizes="128x128">
+      <meta name="apple-mobile-web-app-title" content="dev.to">
+      <meta name="application-name" content="dev.to">
+      <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+      <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+      <link rel="search" href="https://dev.to/open-search.xml" type="application/opensearchdescription+xml" title="DEV Community 👩‍💻👨‍💻">
+
+      <meta property="forem:name" content="DEV Community 👩‍💻👨‍💻">
+      <meta property="forem:logo" content="https://res.cloudinary.com/practicaldev/image/fetch/s--PFPhV65b--/c_limit,f_png,fl_progressive,q_80,w_512/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png">
+      <meta property="forem:domain" content="dev.to">
+  <script>(function inject(config) {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            var isFrameInBlackList = function isFrameInBlackList(url) {
+              var blackListIframes = config;
+              return blackListIframes.some(function (e) {
+                return url.includes(e);
+              });
+            };
+
+            if (this.readyState === 4 && !isFrameInBlackList(this.responseURL)) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })(["facebook.com/","twitter.com/","youtube.com/","youtube-nocookie.com/embed/","//vk.com/","//www.vk.com/","//linkedin.com/","//www.linkedin.com/","//instagram.com/","//www.instagram.com/","//www.google.com/recaptcha/api2/","//hangouts.google.com/webchat/","//www.google.com/calendar/","//www.google.com/maps/embed","spotify.com/","soundcloud.com/","//player.vimeo.com/","//disqus.com/","//tgwidget.com/","//js.driftt.com/","friends2follow.com","/widget","login","//video.bigmir.net/","blogger.com","//smartlock.google.com/","//keep.google.com/","/web.tolstoycomments.com/","moz-extension://","chrome-extension://","/auth/","//analytics.google.com/","adclarity.com","paddle.com/checkout","hcaptcha.com","recaptcha.net","2captcha.com","accounts.google.com","www.google.com/shopping/customerreviews","buy.tinypass.com"]);</script><script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/js(1)" async=""></script><meta name="csrf-param" content="authenticity_token"><meta name="csrf-token" content="9UD14DTLjgBEnr6EIg8nYzBPilIciT9MBbkFZcBeblmhYW0mEPc3ncfL_56D1OHQkAzpByVu4v-QFCeWi2aaNA"><script charset="utf-8" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/146-95d89a66b84a247e32eb.chunk.js"></script><script charset="utf-8" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/140-fabfd0a3d72148df9094.chunk.js"></script><script type="text/javascript" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/c7fa7451-6f95-4815-ac32-b8cc2537837a" data-awssuidacr="takcIqWzNZ6rVf72Kpxh2zXwROqmBbR3"></script><script type="text/javascript" async="" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/taas"></script><script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/js(2)" async=""></script></head>
+      <body class="sans-serif-article-body default-header" data-user-status="logged-out" data-community-name="DEV Community 👩‍💻👨‍💻" data-locale="en" data-honeybadger-key="a45862f6" data-deployed-at="2022-09-28T23:11:10Z" data-latest-commit-id="f11726c74941499f8fa2b5e8547fb9a06e50b239" data-ga-tracking="UA-71991109-1" data-ga4-tracking-id="G-TYEM8Y3JN3" data-loaded="true" data-runtime="Browser-Linux" bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCJ9LCJ2ZXJzaW9uIjoiMS45LjAiLCJzY29yZSI6MTA5MDB9XQ==">
+        <link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/minimal-5b7906f8aca74447068af5f8677182f4484365f08317cfdd7215fd38bcceaeb2.css" media="all" id="secondary-minimal-stylesheet">
+<link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/views-adcc9bb9e58066597a2bf176ff2c7ff32e4557b39b23a321e1bea133abbbfd2e.css" media="all" id="secondary-views-stylesheet">
+<link rel="stylesheet" href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/crayons-e9fbb78d890e905ed5296a60d0ca4546c541a785d89ce88512a478702abb496f.css" media="all" id="secondary-crayons-stylesheet">
+
+        <div id="body-styles" bis_skin_checked="1">
+          <style>
+            :root {
+              --accent-brand-lighter-rgb: 80, 99, 301;
+              --accent-brand-rgb: 59, 73, 223;
+              --accent-brand-darker-rgb: 47, 58, 178;
+            }
+          </style>
+        </div>
+        <div id="audiocontent" data-podcast="" bis_skin_checked="1">
+          
+        </div>
+        <div class="navigation-progress" id="navigation-progress" bis_skin_checked="1"></div>
+<header class="crayons-header print-hidden">
+  <span id="route-change-target" tabindex="-1"></span>
+  <a href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o#main-content" class="skip-content-link">Skip to content</a>
+  <div class="crayons-header__container" bis_skin_checked="1">
+    <span class="inline-block m:hidden ">
+      <button class="c-btn c-btn--icon-alone js-hamburger-trigger mx-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a80i56ca8mlfzxb398sidhudlfgnxg8h" class="crayons-icon"><title id="a80i56ca8mlfzxb398sidhudlfgnxg8h">Navigation menu</title>
+    <path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"></path>
+</svg>
+
+      </button>
+    </span>
+    <a href="https://dev.to/" class="site-logo" aria-label="DEV Community 👩‍💻👨‍💻 Home">
+    <img class="site-logo__img" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/resized_logo_UQww2soKuUsjaOGNB38o.png" alt="DEV Community 👩‍💻👨‍💻">
+</a>
+
+
+    <div class="crayons-header--search js-search-form" id="header-search" bis_skin_checked="1"><form method="get" action="https://dev.to/search" role="search" accept-charset="UTF-8"><input name="utf8" type="hidden" value="✓"><div class="crayons-fields crayons-fields--horizontal" bis_skin_checked="1"><div class="crayons-field flex-1 relative" bis_skin_checked="1"><input class="crayons-header--search-input crayons-textfield" type="text" id="" name="q" placeholder="Search..." autocomplete="off" aria-label="Search term"><button type="submit" aria-label="Search" class="c-btn c-btn--icon-alone absolute inset-px left-auto mt-0 py-0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" class="crayons-icon c-btn__icon" focusable="false"><path d="m18.031 16.617 4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0 1 11 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 0 1-1.969 5.617zm-2.006-.742A6.977 6.977 0 0 0 18 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 0 0 4.875-1.975l.15-.15z"></path></svg></button></div></div></form>
+      
+    </div>
+
+    <div class="flex items-center h-100 ml-auto" bis_skin_checked="1">
+      <a class="c-link c-link--icon-alone c-link--block m:hidden mx-1" id="search-link" aria-label="Search" href="https://dev.to/search">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a18wqd9jcwylch2586svfjxiopxe5yod" class="crayons-icon"><title id="a18wqd9jcwylch2586svfjxiopxe5yod">Search</title>
+    <path d="M18.031 16.617l4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0111 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 01-1.969 5.617zm-2.006-.742A6.977 6.977 0 0018 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 004.875-1.975l.15-.15z"></path>
+</svg>
+
+      </a>
+        <div class="flex" id="authentication-top-nav-actions" bis_skin_checked="1">
+          <span class="hidden m:block">
+            <a href="https://dev.to/enter" class="c-link c-link--block mr-2 whitespace-nowrap ml-auto" data-no-instant="">
+              Log in
+            </a>
+          </span>
+
+          <a href="https://dev.to/enter?state=new-user" data-tracking-id="ca_top_nav" data-tracking-source="top_navbar" class="c-cta c-cta--branded whitespace-nowrap mr-2" data-no-instant="">
+            Create account
+          </a>
+        </div>
+    </div>
+  </div>
+</header>
+
+<div class="hamburger" bis_skin_checked="1">
+  <div class="hamburger__content" bis_skin_checked="1">
+    <header class="hamburger__content__header">
+      <h2 class="fs-l fw-bold flex-1 break-word lh-tight">DEV Community 👩‍💻👨‍💻</h2>
+
+      <button class="c-btn c-btn--icon-alone js-hamburger-trigger shrink-0" aria-label="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a6upl2aq368ml3c62uw8ga00nns4yoc0" aria-hidden="true" class="crayons-icon c-btn__icon"><title id="a6upl2aq368ml3c62uw8ga00nns4yoc0">Close</title><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636l4.95 4.95z"></path></svg>
+
+      </button>
+    </header>
+
+    <div class="p-2" id="authentication-hamburger-actions" bis_skin_checked="1">
+      <div class="crayons-card crayons-card--secondary p-4" bis_skin_checked="1">
+  <h2 class="crayons-subtitle-2 lh-tight mb-4">
+    <a href="https://dev.to/" class="c-link c-link--branded">DEV Community 👩‍💻👨‍💻</a> is a community of 929,498 amazing developers
+
+  </h2>
+    <p class="color-base-70 mb-4">
+      We're a place where coders share, stay up-to-date and grow their careers.
+    </p>
+  <div bis_skin_checked="1">
+    <a href="https://dev.to/enter?state=new-user" data-tracking-id="ca_hamburger_home_page" data-tracking-source="mobile_hamburger_nav" class="c-cta c-cta--branded justify-center w-100 mb-1" aria-label="Create new account">Create account</a>
+    <a href="https://dev.to/enter" class="c-link c-link--block justify-center" aria-label="Log in">Log in</a>
+  </div>
+</div>
+
+      
+<nav class="mb-4 mt-4" data-testid="main-nav" aria-label="DEV Community 👩‍💻👨‍💻">
+  <ul class="default-navigation-links sidebar-navigation-links spec-sidebar-navigation-links">
+        <li>
+    <a href="https://dev.to/" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#A0041E" d="M13.344 18.702h-2a.5.5 0 01-.5-.5v-7a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v7a.5.5 0 01-.5.5z"></path>
+        <path fill="#FFE8B6" d="M9 20L22 7l13 13v17H9z"></path>
+        <path fill="#FFCC4D" d="M22 20h1v16h-1z"></path>
+        <path fill="#66757F" d="M35 21a.997.997 0 01-.707-.293L22 8.414 9.707 20.707a1 1 0 11-1.414-1.414l13-13a.999.999 0 011.414 0l13 13A.999.999 0 0135 21z"></path>
+        <path fill="#66757F" d="M22 21a.999.999 0 01-.707-1.707l6.5-6.5a1 1 0 111.414 1.414l-6.5 6.5A.997.997 0 0122 21z"></path>
+        <path fill="#C1694F" d="M14 30h4v6h-4z"></path>
+        <path fill="#55ACEE" d="M14 21h4v4h-4zm12.5 0h4v4h-4zm0 9h4v4h-4z"></path>
+        <path fill="#5C913B" d="M37.5 37.5A1.5 1.5 0 0136 39H8a1.5 1.5 0 010-3h28a1.5 1.5 0 011.5 1.5z"></path>
+    </g>
+</svg>
+
+      </span>
+      Home
+    </a>
+  </li>
+
+      
+        <li>
+    <a href="https://dev.to/listings" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#FFD983" d="M36 4H14a4 4 0 00-4 4v24H8a4 4 0 000 8h24a4 4 0 004-4V12a4 4 0 000-8z"></path>
+        <path fill="#E39F3D" d="M12 14h24v-2H14l-2-1z"></path>
+        <path fill="#FFE8B6" d="M14 4a4 4 0 00-4 4v24.555A3.955 3.955 0 008 32a4 4 0 104 4V11.445c.59.344 1.268.555 2 .555a4 4 0 000-8z"></path>
+        <path fill="#C1694F" d="M16 8a2 2 0 11-4.001-.001A2 2 0 0116 8m-6 28a2 2 0 11-4.001-.001A2 2 0 0110 36m24-17a1 1 0 01-1 1H15a1 1 0 010-2h18a1 1 0 011 1m0 4a1 1 0 01-1 1H15a1 1 0 110-2h18a1 1 0 011 1m0 4a1 1 0 01-1 1H15a1 1 0 110-2h18a1 1 0 011 1m0 4a1 1 0 01-1 1H15a1 1 0 110-2h18a1 1 0 011 1"></path>
+    </g>
+</svg>
+
+      </span>
+      Listings
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/pod" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#292F33" d="M10 19h24v2H10zm15 15c0 2.208-.792 4-3 4-2.209 0-3-1.792-3-4s.791-2 3-2c2.208 0 3-.208 3 2z"></path>
+        <path fill="#66757F" d="M22 35c-6.627 0-10 1.343-10 3v2h20v-2c0-1.657-3.373-3-10-3z"></path>
+        <path fill="#99AAB5" d="M22 4a9 9 0 00-9 9v7h18v-7a9 9 0 00-9-9z"></path>
+        <g fill="#292F33" transform="translate(4 4)">
+            <circle cx="15.5" cy="2.5" r="1.5"></circle>
+            <circle cx="20.5" cy="2.5" r="1.5"></circle>
+            <circle cx="17.5" cy="6.5" r="1.5"></circle>
+            <circle cx="22.5" cy="6.5" r="1.5"></circle>
+            <circle cx="12.5" cy="6.5" r="1.5"></circle>
+            <circle cx="15.5" cy="10.5" r="1.5"></circle>
+            <circle cx="10.5" cy="10.5" r="1.5"></circle>
+            <circle cx="20.5" cy="10.5" r="1.5"></circle>
+            <circle cx="25.5" cy="10.5" r="1.5"></circle>
+            <circle cx="17.5" cy="14.5" r="1.5"></circle>
+            <circle cx="22.5" cy="14.5" r="1.5"></circle>
+            <circle cx="12.5" cy="14.5" r="1.5"></circle>
+        </g>
+        <path fill="#66757F" d="M13 19.062V21c0 4.971 4.029 9 9 9s9-4.029 9-9v-1.938H13z"></path>
+        <path fill="#66757F" d="M34 18a1 1 0 00-1 1v2c0 6.074-4.925 11-11 11s-11-4.926-11-11v-2a1 1 0 00-2 0v2c0 7.18 5.82 13 13 13s13-5.82 13-13v-2a1 1 0 00-1-1z"></path>
+    </g>
+</svg>
+
+      </span>
+      Podcasts
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/videos" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g transform="translate(4 4)">
+        <path fill="#31373D" d="M34.074 18l-4.832 3H28v-4c0-.088-.02-.169-.026-.256C31.436 15.864 34 12.735 34 9a8 8 0 00-16.001 0c0 1.463.412 2.822 1.099 4H14.92c.047-.328.08-.66.08-1a7 7 0 10-14 0 6.995 6.995 0 004 6.317V29a4 4 0 004 4h15a4 4 0 004-4v-3h1.242l4.832 3H35V18h-.926zM28.727 3.977a5.713 5.713 0 012.984 4.961L28.18 8.35a2.276 2.276 0 00-.583-.982l1.13-3.391zm-.9 6.342l3.552.592a5.713 5.713 0 01-4.214 3.669 3.985 3.985 0 00-1.392-1.148l.625-2.19a2.425 2.425 0 001.429-.923zM26 3.285c.282 0 .557.027.828.067l-1.131 3.392c-.404.054-.772.21-1.081.446L21.42 5.592A5.703 5.703 0 0126 3.285zM20.285 9c0-.563.085-1.106.236-1.62l3.194 1.597-.002.023c0 .657.313 1.245.771 1.662L23.816 13h-1.871a5.665 5.665 0 01-1.66-4zm-9.088-.385A4.64 4.64 0 0112.667 12c0 .344-.043.677-.113 1H10.1c.145-.304.233-.641.233-1a2.32 2.32 0 00-.392-1.292l1.256-2.093zM8 7.333c.519 0 1.01.105 1.476.261L8.22 9.688c-.073-.007-.145-.022-.22-.022a2.32 2.32 0 00-1.292.392L4.615 8.803A4.64 4.64 0 018 7.333zM3.333 12c0-.519.105-1.01.261-1.477l2.095 1.257c-.007.073-.022.144-.022.22 0 .75.36 1.41.91 1.837a3.987 3.987 0 00-1.353 1.895C4.083 14.881 3.333 13.533 3.333 12z"></path>
+        <circle fill="#8899A6" cx="24" cy="19" r="2"></circle>
+        <circle fill="#8899A6" cx="9" cy="19" r="2"></circle>
+        <path fill="#8899A6" d="M24 27a2 2 0 00-2-2H11a2 2 0 00-2 2v6a2 2 0 002 2h11a2 2 0 002-2v-6z"></path>
+    </g>
+</svg>
+
+      </span>
+      Videos
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/tags" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#FFD983" d="M36.017 24.181L21.345 9.746C20.687 9.087 19.823 9 18.96 9H8.883C7.029 9 6 10.029 6 11.883v10.082c0 .861.089 1.723.746 2.38L21.3 39.017a3.287 3.287 0 004.688 0l10.059-10.088c1.31-1.312 1.28-3.438-.03-4.748zm-23.596-8.76a1.497 1.497 0 11-2.118-2.117 1.497 1.497 0 012.118 2.117z"></path>
+        <path fill="#D99E82" d="M13.952 11.772a3.66 3.66 0 00-5.179 0 3.663 3.663 0 105.18 5.18 3.664 3.664 0 00-.001-5.18zm-1.53 3.65a1.499 1.499 0 11-2.119-2.12 1.499 1.499 0 012.119 2.12z"></path>
+        <path fill="#C1694F" d="M12.507 14.501a1 1 0 11-1.415-1.414l8.485-8.485a1 1 0 111.415 1.414l-8.485 8.485z"></path>
+    </g>
+</svg>
+
+      </span>
+      Tags
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/faq" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#FFD983" d="M33 15.06c0 6.439-5 7.439-5 13.44 0 3.098-3.123 3.359-5.5 3.359-2.053 0-6.586-.779-6.586-3.361C15.914 22.5 11 21.5 11 15.06c0-6.031 5.285-10.92 11.083-10.92C27.883 4.14 33 9.029 33 15.06z"></path>
+        <path fill="#CCD6DD" d="M26.167 36.5c0 .828-2.234 2.5-4.167 2.5-1.933 0-4.167-1.672-4.167-2.5 0-.828 2.233-.5 4.167-.5 1.933 0 4.167-.328 4.167.5z"></path>
+        <path fill="#FFCC4D" d="M26.707 14.293a.999.999 0 00-1.414 0L22 17.586l-3.293-3.293a1 1 0 10-1.414 1.414L21 19.414V30a1 1 0 102 0V19.414l3.707-3.707a.999.999 0 000-1.414z"></path>
+        <path fill="#99AAB5" d="M28 35a2 2 0 01-2 2h-8a2 2 0 01-2-2v-6h12v6z"></path>
+        <path fill="#CCD6DD" d="M15.999 36a1 1 0 01-.163-1.986l12-2a.994.994 0 011.15.822.999.999 0 01-.822 1.15l-12 2a.927.927 0 01-.165.014zm0-4a1 1 0 01-.163-1.986l12-2a.995.995 0 011.15.822.999.999 0 01-.822 1.15l-12 2a.927.927 0 01-.165.014z"></path>
+    </g>
+</svg>
+
+      </span>
+      FAQ
+    </a>
+  </li>
+
+        <li>
+    <a href="https://shop.forem.com/" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#F4900C" d="M15 4a8 8 0 00-8 8v8h2v-8a6 6 0 0112 0v8h2v-8a8 8 0 00-8-8z"></path>
+        <path fill="#DD2E44" d="M5 12l2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2v23H5z"></path>
+        <path fill="#FFCC4D" d="M29 9a8 8 0 00-8 8v8h2v-8a6 6 0 0112 0v8h2v-8a8 8 0 00-8-8z"></path>
+        <path fill="#744EAA" d="M19 17l2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2v23H19z"></path>
+    </g>
+</svg>
+
+      </span>
+      Forem Shop
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/sponsorships" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <path fill="#DD2E44" d="M39.885 15.833c0-5.45-4.418-9.868-9.867-9.868-3.308 0-6.227 1.633-8.018 4.129-1.791-2.496-4.71-4.129-8.017-4.129-5.45 0-9.868 4.417-9.868 9.868 0 .772.098 1.52.266 2.241C5.751 26.587 15.216 35.568 22 38.034c6.783-2.466 16.249-11.447 17.617-19.959.17-.721.268-1.469.268-2.242z"></path>
+</svg>
+
+      </span>
+      Sponsors
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/about" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg viewBox="0 0 235 234" xmlns="http://www.w3.org/2000/svg" class="rainbow-logo" preserveAspectRatio="xMinYMin meet">
+    <g fill="none" fill-rule="evenodd">
+        <path fill="#88AEDC" d="M234.04 175.67l-75.69 58.28h47.18L234.04 212z"></path>
+        <path d="M234.04 140.06l-121.93 93.89h.02l121.91-93.87zM133.25.95L.04 103.51v.02L133.27.95z"></path>
+        <path fill="#F58F8E" fill-rule="nonzero" d="M.04.95v30.16L39.21.95z"></path>
+        <path fill="#FEE18A" fill-rule="nonzero" d="M39.21.95L.04 31.11v35.9L85.84.95z"></path>
+        <path fill="#F3F095" fill-rule="nonzero" d="M85.84.95L.04 67.01v36.5L133.25.95z"></path>
+        <path fill="#55C1AE" fill-rule="nonzero" d="M133.27.95L.04 103.53v35.59L179.49.95z"></path>
+        <path fill="#F7B3CE" fill-rule="nonzero" d="M234.04.95h-7.37L.04 175.45v35.93l234-180.18z"></path>
+        <path fill="#88AEDC" fill-rule="nonzero" d="M179.49.95L.04 139.12v36.33L226.67.95z"></path>
+        <path fill="#F58F8E" fill-rule="nonzero" d="M234.04 31.2L.04 211.38v22.57h18.03l215.97-166.3z"></path>
+        <path fill="#FEE18A" fill-rule="nonzero" d="M234.04 67.65L18.07 233.95H64.7l169.34-130.39z"></path>
+        <path fill="#F3F095" fill-rule="nonzero" d="M234.04 103.56L64.7 233.95h47.41l121.93-93.89z"></path>
+        <path fill="#55C1AE" fill-rule="nonzero" d="M234.04 140.08l-121.91 93.87h46.22l75.69-58.28z"></path>
+        <path fill="#F7B3CE" fill-rule="nonzero" d="M234.04 212l-28.51 21.95h28.51z"></path>
+        <path d="M65.237 77.75c4.514.95 7.774 2.8 11.135 6.3 3.059 3.2 4.965 6.85 5.767 10.95.652 3.45.652 40.55 0 44.05-1.705 9.1-9.479 16.2-19.109 17.45-2.006.25-8.727.5-14.845.5H37V77h12.438c8.828 0 13.342.2 15.8.75zM51.545 117v25.6l5.166-.2c4.464-.15 5.417-.35 7.423-1.5 3.912-2.3 3.962-2.45 3.962-24.2 0-21.2 0-21.2-3.661-23.6-1.806-1.2-2.558-1.35-7.473-1.55l-5.417-.15V117zm79.245-32.75v7.25h-25.58v18h15.549V124H105.21l.1 9.1.15 9.15 12.69.15 12.638.1V157h-14.795c-16.451 0-19.009-.3-21.617-2.6-3.661-3.2-3.46-1.15-3.611-36.3-.1-21.9.05-32.25.401-33.65.702-2.6 3.661-5.8 6.27-6.7 1.554-.55 5.466-.7 17.704-.75h15.648v7.25zm31.647 20.85c3.712 14.25 6.821 25.6 6.922 25.25.15-.35 3.31-12.4 7.071-26.85l6.872-26.25 7.824-.15c5.918-.1 7.874.05 7.874.5s-17.354 66.2-18.357 69.5c-.702 2.3-4.463 7-6.57 8.25-2.658 1.5-6.57 1.75-8.978.5-2.156-1.1-5.015-4.4-6.47-7.5-.902-1.9-15.648-56-19.058-70l-.352-1.35h7.825c7.673 0 7.874 0 8.275 1.1.2.65 3.41 12.8 7.122 27z" fill="#FFF"></path>
+    </g>
+</svg>
+
+      </span>
+      About
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/contact" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#FFAC33" d="M38.724 33.656c-1.239-.01-1.241 1.205-1.241 1.205H22.5c-5.246 0-9.5-4.254-9.5-9.5s4.254-9.5 9.5-9.5 9.5 4.254 9.5 9.5c0 3.062-1.6 5.897-3.852 7.633h5.434C35.022 30.849 36 28.139 36 25.361c0-7.456-6.045-13.5-13.5-13.5-7.456 0-13.5 6.044-13.5 13.5 0 7.455 6.044 13.5 13.5 13.5h14.982s-.003 1.127 1.241 1.139c1.238.012 1.228-1.245 1.228-1.245l.014-3.821s.001-1.267-1.241-1.278zM9 18.26a16.047 16.047 0 014-4.739V13c0-5 5-7 5-8s-1-1-1-1H5C4 4 4 5 4 5c0 1 5 3.333 5 7.69v5.57z"></path>
+        <path fill="#BE1931" d="M17.091 33.166a9.487 9.487 0 01-4.045-8.72l-3.977-.461c-.046.452-.069.911-.069 1.376 0 4.573 2.28 8.608 5.76 11.051l2.331-3.246z"></path>
+        <path fill="#BE1931" d="M10 29.924s-5.188-.812-5 1 5-1 5-1zm0 .312s-4.125 2.688-2.938 3.75S10 30.236 10 30.236z"></path>
+    </g>
+</svg>
+
+      </span>
+      Contact
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/guides" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <!--?xml version="1.0" encoding="UTF-8" standalone="no"?--><svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 47.5 47.5" style="enable-background:new 0 0 47.5 47.5;" id="svg2" xml:space="preserve"><defs id="defs6"><clippath id="clipPath18"><path d="M 0,38 38,38 38,0 0,0 0,38 z" id="path20"></path></clippath></defs><g transform="matrix(1.25,0,0,-1.25,0,47.5)" id="g12"><g id="g14"><g clip-path="url(#clipPath18)" id="g16"><g transform="translate(33,30)" id="g22"><path d="m 0,0 -28,0 c -2.209,0 -4,-1.791 -4,-4 l 0,-15 c 0,-2.209 1.791,-4 4,-4 l 11.416,0 c 0.52,-0.596 1.477,-1 2.584,-1 1.107,0 2.064,0.404 2.584,1 L 0,-23 c 2.209,0 4,1.791 4,4 L 4,-4 C 4,-1.791 2.209,0 0,0" id="path24" style="fill:#226699;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g><g transform="translate(21,10)" id="g26"><path d="m 0,0 c 0,-1.104 -0.896,-2 -2,-2 -1.104,0 -2,0.896 -2,2 l 0,18 c 0,1.104 0.896,2 2,2 1.104,0 2,-0.896 2,-2 L 0,0 z" id="path28" style="fill:#292f33;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g><g transform="translate(19,11)" id="g30"><path d="m 0,0 c 0,-1.104 -0.896,-2 -2,-2 l -12,0 c -1.104,0 -2,0.896 -2,2 l 0,18 c 0,1.104 0.896,2 2,2 l 12,0 c 1.104,0 2,-0.896 2,-2 L 0,0 z" id="path32" style="fill:#99aab5;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g><g transform="translate(19,11)" id="g34"><path d="m 0,0 c -0.999,1.998 -3.657,2 -4,2 -2,0 -5,-2 -8,-2 -1,0 -2,0.896 -2,2 l 0,16 c 0,1.104 1,2 2,2 3.255,0 6,2 8,2 3,0 4,-1.896 4,-3 L 0,0 z" id="path36" style="fill:#e1e8ed;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g><g transform="translate(35,11)" id="g38"><path d="m 0,0 c 0,-1.104 -0.896,-2 -2,-2 l -12,0 c -1.104,0 -2,0.896 -2,2 l 0,18 c 0,1.104 0.896,2 2,2 l 12,0 c 1.104,0 2,-0.896 2,-2 L 0,0 z" id="path40" style="fill:#99aab5;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g><g transform="translate(19,11)" id="g42"><path d="m 0,0 c 0.999,1.998 3.657,2 4,2 2,0 5,-2 8,-2 1,0 2,0.896 2,2 l 0,16 c 0,1.104 -1,2 -2,2 C 8.744,20 6,22 4,22 1,22 0,20.104 0,19 L 0,0 z" id="path44" style="fill:#ccd6dd;fill-opacity:1;fill-rule:nonzero;stroke:none"></path></g></g></g></g></svg>
+
+      </span>
+      Guides
+    </a>
+  </li>
+
+        <li>
+    <a href="https://dev.to/software-comparisons" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <!--?xml version="1.0" encoding="UTF-8" standalone="no"?--><svg xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" style="enable-background:new 0 0 45 45;" xml:space="preserve" version="1.1" id="svg2"><metadata id="metadata8"><rdf:rdf><cc:work rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"></dc:type></cc:work></rdf:rdf></metadata><defs id="defs6"><clippath id="clipPath16" clipPathUnits="userSpaceOnUse"><path id="path18" d="M 0,36 36,36 36,0 0,0 0,36 Z"></path></clippath></defs><g transform="matrix(1.25,0,0,-1.25,0,45)" id="g10"><g id="g12"><g clip-path="url(#clipPath16)" id="g14"><g transform="translate(2,20)" id="g20"><path id="path22" style="fill:#ffcc4d;fill-opacity:1;fill-rule:nonzero;stroke:none" d="m 0,0 c 0,-8.837 7.164,-16 16,-16 8.837,0 16,7.163 16,16 C 32,8.836 24.837,16 16,16 7.164,16 0,8.836 0,0"></path></g><g transform="translate(15.4063,25.5)" id="g24"><path id="path26" style="fill:#664500;fill-opacity:1;fill-rule:nonzero;stroke:none" d="m 0,0 c 0,-1.381 -0.896,-2.5 -2,-2.5 -1.104,0 -2,1.119 -2,2.5 0,1.38 0.896,2.5 2,2.5 1.104,0 2,-1.12 2,-2.5"></path></g><g transform="translate(26,24.5)" id="g28"><path id="path30" style="fill:#664500;fill-opacity:1;fill-rule:nonzero;stroke:none" d="m 0,0 c 0,-1.381 -0.895,-2.5 -2,-2.5 -1.104,0 -2,1.119 -2,2.5 0,1.38 0.896,2.5 2,2.5 1.105,0 2,-1.12 2,-2.5"></path></g><g transform="translate(9.6709,29.667)" id="g32"><path id="path34" style="fill:#664500;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 C -0.164,0.087 -0.303,0.223 -0.391,0.398 -0.607,0.827 -0.431,1.325 0.002,1.511 4.268,3.341 7.701,1.554 7.845,1.477 8.278,1.246 8.453,0.729 8.236,0.323 8.02,-0.082 7.496,-0.223 7.063,0.005 6.94,0.069 4.231,1.437 0.785,-0.042 0.528,-0.151 0.238,-0.127 0,0"></path></g><g transform="translate(14.7427,16.4277)" id="g36"><path id="path38" style="fill:#664500;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 C -0.136,0.127 -0.236,0.293 -0.276,0.486 -0.375,0.955 -0.078,1.392 0.389,1.46 4.981,2.138 7.841,-0.469 7.962,-0.58 8.322,-0.914 8.357,-1.457 8.044,-1.795 7.732,-2.131 7.189,-2.133 6.83,-1.801 6.726,-1.709 4.458,0.307 0.748,-0.24 0.471,-0.281 0.197,-0.184 0,0"></path></g><g transform="translate(20.4307,25.917)" id="g40"><path id="path42" style="fill:#664500;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 C -0.156,0.098 -0.286,0.243 -0.362,0.424 -0.549,0.866 -0.339,1.352 0.105,1.508 4.486,3.044 7.79,1.028 7.929,0.941 8.344,0.681 8.483,0.154 8.24,-0.237 7.998,-0.627 7.464,-0.732 7.049,-0.475 6.929,-0.402 4.321,1.146 0.782,-0.095 0.518,-0.187 0.23,-0.143 0,0"></path></g><g transform="translate(17.2764,0.8682)" id="g44"><path id="path46" style="fill:#f4900c;fill-opacity:1;fill-rule:nonzero;stroke:none" d="m 0,0 c 0,0 1.265,0.411 1.429,1.352 0.173,0.971 -0.624,1.167 -0.624,1.167 0,0 1.041,0.208 1.172,1.376 0.123,1.1 -0.862,1.363 -0.862,1.363 0,0 0.97,0.4 1.016,1.539 0.038,0.959 -0.995,1.428 -0.995,1.428 0,0 5.038,1.22 5.555,1.34 0.516,0.121 1.321,0.616 1.07,1.695 -0.249,1.08 -1.204,1.118 -1.698,1.003 -0.494,-0.116 -6.744,-1.567 -8.9,-2.069 -0.23,-0.053 -1.308,-0.302 -1.439,-0.334 -0.54,-0.127 -0.785,0.111 -0.405,0.512 0.509,0.536 0.833,1.129 0.947,2.113 0.119,1.036 -0.232,2.314 -0.433,2.809 -0.374,0.921 -1.005,1.649 -1.734,1.899 -1.138,0.39 -1.946,-0.321 -1.542,-1.561 0.604,-1.855 0.209,-3.375 -0.833,-4.293 -2.449,-2.157 -3.589,-3.695 -2.83,-6.973 0.827,-3.575 4.377,-5.876 7.952,-5.048 C -2.965,-0.64 0,0 0,0"></path></g></g></g></g></svg>
+
+      </span>
+      Software comparisons
+    </a>
+  </li>
+
+  </ul>
+</nav>
+
+  <nav class="mb-4" data-testid="other-nav" aria-labelledby="other-nav-heading-hamburger">
+    <h2 id="other-nav-heading-hamburger" class="crayons-subtitle-3 py-2 pl-3">
+      Other
+    </h2>
+    <ul class="other-navigation-links sidebar-navigation-links spec-sidebar-navigation-links">
+          <li>
+    <a href="https://dev.to/code-of-conduct" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g class="nc-icon-wrapper">
+        <path fill="#FFDB5E" d="M38.956 21.916c0-.503-.12-.975-.321-1.404-1.341-4.326-7.619-4.01-16.549-4.221-1.493-.035-.639-1.798-.115-5.668.341-2.517-1.282-6.382-4.01-6.382-4.498 0-.171 3.548-4.148 12.322-2.125 4.688-6.875 2.062-6.875 6.771v10.719c0 1.833.18 3.595 2.758 3.885 2.499.281 1.937 2.062 5.542 2.062h18.044a3.337 3.337 0 003.333-3.334c0-.762-.267-1.456-.698-2.018 1.02-.571 1.72-1.649 1.72-2.899 0-.76-.266-1.454-.696-2.015 1.023-.57 1.725-1.649 1.725-2.901 0-.909-.368-1.733-.961-2.336a3.311 3.311 0 001.251-2.581z"></path>
+        <path fill="#EE9547" d="M27.02 25.249h8.604c1.17 0 2.268-.626 2.866-1.633a.876.876 0 00-1.506-.892 1.588 1.588 0 01-1.361.775h-8.81c-.873 0-1.583-.71-1.583-1.583s.71-1.583 1.583-1.583H32.7a.875.875 0 000-1.75h-5.888a3.337 3.337 0 00-3.333 3.333c0 1.025.475 1.932 1.205 2.544a3.32 3.32 0 00-.998 2.373c0 1.028.478 1.938 1.212 2.549a3.318 3.318 0 00.419 5.08 3.305 3.305 0 00-.852 2.204 3.337 3.337 0 003.333 3.333h5.484a3.35 3.35 0 002.867-1.632.875.875 0 00-1.504-.894 1.594 1.594 0 01-1.363.776h-5.484c-.873 0-1.583-.71-1.583-1.583s.71-1.583 1.583-1.583h6.506a3.35 3.35 0 002.867-1.633.875.875 0 10-1.504-.894 1.572 1.572 0 01-1.363.777h-7.063a1.585 1.585 0 010-3.167h8.091a3.35 3.35 0 002.867-1.632.875.875 0 00-1.504-.894 1.573 1.573 0 01-1.363.776H27.02a1.585 1.585 0 010-3.167z"></path>
+    </g>
+</svg>
+
+      </span>
+      Code of Conduct
+    </a>
+  </li>
+
+          <li>
+    <a href="https://dev.to/privacy" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g transform="translate(4 4)">
+        <circle fill="#FFCC4D" cx="18" cy="18" r="18"></circle>
+        <path fill="#664500" d="M27.335 23.629a.501.501 0 00-.635-.029c-.039.029-3.922 2.9-8.7 2.9-4.766 0-8.662-2.871-8.7-2.9a.5.5 0 10-.729.657C8.7 24.472 11.788 29.5 18 29.5s9.301-5.028 9.429-5.243a.499.499 0 00-.094-.628z"></path>
+        <path fill="#65471B" d="M18 26.591c-.148 0-.291-.011-.438-.016v4.516h.875v-4.517c-.145.005-.289.017-.437.017z"></path>
+        <path fill="#FFF" d="M22 26c.016-.004-1.45.378-2.446.486-.366.042-.737.076-1.117.089v4.517H20c1.1 0 2-.9 2-2V26zm-8 0c-.016-.004 1.45.378 2.446.486.366.042.737.076 1.117.089v4.517H16c-1.1 0-2-.9-2-2V26z"></path>
+        <path fill="#65471B" d="M27.335 23.629a.501.501 0 00-.635-.029c-.03.022-2.259 1.668-5.411 2.47-.443.113-1.864.43-3.286.431-1.424 0-2.849-.318-3.292-.431-3.152-.802-5.381-2.448-5.411-2.47a.501.501 0 00-.729.657c.097.162 1.885 3.067 5.429 4.481v-1.829c-.016-.004 1.45.378 2.446.486.366.042.737.076 1.117.089.146.005.289.016.437.016.148 0 .291-.011.438-.016.38-.013.751-.046 1.117-.089.996-.108 2.462-.49 2.446-.486v1.829c3.544-1.414 5.332-4.319 5.429-4.481a.5.5 0 00-.095-.628zm-.711-9.605c0 1.714-.938 3.104-2.096 3.104-1.157 0-2.096-1.39-2.096-3.104s.938-3.104 2.096-3.104c1.158 0 2.096 1.39 2.096 3.104zm-17.167 0c0 1.714.938 3.104 2.096 3.104 1.157 0 2.096-1.39 2.096-3.104s-.938-3.104-2.096-3.104c-1.158 0-2.096 1.39-2.096 3.104z"></path>
+        <path fill="#292F33" d="M34.808 9.627c-.171-.166-1.267.274-2.376-.291-2.288-1.166-8.07-2.291-11.834.376-.403.285-2.087.333-2.558.313-.471.021-2.155-.027-2.558-.313-3.763-2.667-9.545-1.542-11.833-.376-1.109.565-2.205.125-2.376.291-.247.239-.247 1.196.001 1.436.246.239 1.477.515 1.722 1.232.247.718.249 4.958 2.213 6.424 1.839 1.372 6.129 1.785 8.848.238 2.372-1.349 2.289-4.189 2.724-5.881.155-.603.592-.907 1.26-.907s1.105.304 1.26.907c.435 1.691.351 4.532 2.724 5.881 2.719 1.546 7.009 1.133 8.847-.238 1.965-1.465 1.967-5.706 2.213-6.424.245-.717 1.476-.994 1.722-1.232.248-.24.249-1.197.001-1.436zm-20.194 3.65c-.077 1.105-.274 3.227-1.597 3.98-.811.462-1.868.743-2.974.743h-.001c-1.225 0-2.923-.347-3.587-.842-.83-.619-1.146-3.167-1.265-4.12-.076-.607-.28-2.09.388-2.318 1.06-.361 2.539-.643 4.052-.643.693 0 3.021.043 4.155.741 1.005.617.872 1.851.829 2.459zm16.278-.253c-.119.954-.435 3.515-1.265 4.134-.664.495-2.362.842-3.587.842h-.001c-1.107 0-2.163-.281-2.975-.743-1.323-.752-1.52-2.861-1.597-3.966-.042-.608-.176-1.851.829-2.468 1.135-.698 3.462-.746 4.155-.746 1.513 0 2.991.277 4.052.638.668.228.465 1.702.389 2.309z"></path>
+    </g>
+</svg>
+
+      </span>
+      Privacy Policy
+    </a>
+  </li>
+
+          <li>
+    <a href="https://dev.to/terms" class="sidebar-navigation-link c-link c-link--block c-link--icon-left">
+      <span class="c-link__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="24" height="24">
+    <g transform="translate(4 4)">
+        <ellipse fill="#F5F8FA" cx="8.828" cy="18" rx="7.953" ry="13.281"></ellipse>
+        <path fill="#E1E8ED" d="M8.828 32.031C3.948 32.031.125 25.868.125 18S3.948 3.969 8.828 3.969 17.531 10.132 17.531 18s-3.823 14.031-8.703 14.031zm0-26.562C4.856 5.469 1.625 11.09 1.625 18s3.231 12.531 7.203 12.531S16.031 24.91 16.031 18 12.8 5.469 8.828 5.469z"></path>
+        <circle fill="#8899A6" cx="6.594" cy="18" r="4.96"></circle>
+        <circle fill="#292F33" cx="6.594" cy="18" r="3.565"></circle>
+        <circle fill="#F5F8FA" cx="7.911" cy="15.443" r="1.426"></circle>
+        <ellipse fill="#F5F8FA" cx="27.234" cy="18" rx="7.953" ry="13.281"></ellipse>
+        <path fill="#E1E8ED" d="M27.234 32.031c-4.88 0-8.703-6.163-8.703-14.031s3.823-14.031 8.703-14.031S35.938 10.132 35.938 18s-3.824 14.031-8.704 14.031zm0-26.562c-3.972 0-7.203 5.622-7.203 12.531 0 6.91 3.231 12.531 7.203 12.531S34.438 24.91 34.438 18 31.206 5.469 27.234 5.469z"></path>
+        <circle fill="#8899A6" cx="25" cy="18" r="4.96"></circle>
+        <circle fill="#292F33" cx="25" cy="18" r="3.565"></circle>
+        <circle fill="#F5F8FA" cx="26.317" cy="15.443" r="1.426"></circle>
+    </g>
+</svg>
+
+      </span>
+      Terms of use
+    </a>
+  </li>
+
+    </ul>
+  </nav>
+
+<div class="flex justify-start mb-4" bis_skin_checked="1">
+    <a href="https://twitter.com/thepracticaldev" target="_blank" class="c-link c-link--icon-alone c-link--block mx-1" rel="noopener">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="airdc045w1efsrp65umlv7vw05vbxbzq" class="crayons-icon c-link__icon"><title id="airdc045w1efsrp65umlv7vw05vbxbzq">Twitter</title>
+    <path d="M22.162 5.656a8.383 8.383 0 01-2.402.658A4.196 4.196 0 0021.6 4c-.82.488-1.719.83-2.656 1.015a4.182 4.182 0 00-7.126 3.814 11.874 11.874 0 01-8.62-4.37 4.168 4.168 0 00-.566 2.103c0 1.45.738 2.731 1.86 3.481a4.168 4.168 0 01-1.894-.523v.052a4.185 4.185 0 003.355 4.101 4.211 4.211 0 01-1.89.072A4.185 4.185 0 007.97 16.65a8.395 8.395 0 01-6.191 1.732 11.83 11.83 0 006.41 1.88c7.693 0 11.9-6.373 11.9-11.9 0-.18-.005-.362-.013-.54a8.495 8.495 0 002.087-2.165l-.001-.001z" fill="#65bbf2"></path>
+</svg>
+
+  </a>
+  <a href="https://facebook.com/thepracticaldev" target="_blank" class="c-link c-link--icon-alone c-link--block mx-1" rel="noopener">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aljv8fwceo5fwyo60ggcgqi9k24fvmys" class="crayons-icon c-link__icon"><title id="aljv8fwceo5fwyo60ggcgqi9k24fvmys">Facebook</title>
+    <path d="M15.402 21v-6.966h2.333l.349-2.708h-2.682V9.598c0-.784.218-1.319 1.342-1.319h1.434V5.857a19.188 19.188 0 00-2.09-.107c-2.067 0-3.482 1.262-3.482 3.58v1.996h-2.338v2.708h2.338V21H4a1 1 0 01-1-1V4a1 1 0 011-1h16a1 1 0 011 1v16a1 1 0 01-1 1h-4.598z"></path>
+</svg>
+
+  </a>
+  <a href="https://github.com/forem" target="_blank" class="c-link c-link--icon-alone c-link--block mx-1" rel="noopener">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9d73dxdr3peecv41u674gu2ey0ynx4b" class="crayons-icon c-link__icon"><title id="a9d73dxdr3peecv41u674gu2ey0ynx4b">Github</title>
+    <path d="M12 2C6.475 2 2 6.475 2 12a9.994 9.994 0 006.838 9.488c.5.087.687-.213.687-.476 0-.237-.013-1.024-.013-1.862-2.512.463-3.162-.612-3.362-1.175-.113-.288-.6-1.175-1.025-1.413-.35-.187-.85-.65-.013-.662.788-.013 1.35.725 1.538 1.025.9 1.512 2.338 1.087 2.912.825.088-.65.35-1.087.638-1.337-2.225-.25-4.55-1.113-4.55-4.938 0-1.088.387-1.987 1.025-2.688-.1-.25-.45-1.275.1-2.65 0 0 .837-.262 2.75 1.026a9.28 9.28 0 012.5-.338c.85 0 1.7.112 2.5.337 1.912-1.3 2.75-1.024 2.75-1.024.55 1.375.2 2.4.1 2.65.637.7 1.025 1.587 1.025 2.687 0 3.838-2.337 4.688-4.562 4.938.362.312.675.912.675 1.85 0 1.337-.013 2.412-.013 2.75 0 .262.188.574.688.474A10.016 10.016 0 0022 12c0-5.525-4.475-10-10-10z"></path>
+</svg>
+
+  </a>
+  <a href="https://instagram.com/thepracticaldev" target="_blank" class="c-link c-link--icon-alone c-link--block mx-1" rel="noopener">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="agr8m5pq9n07coo3msigcdzpxgx0w8an" class="crayons-icon c-link__icon"><title id="agr8m5pq9n07coo3msigcdzpxgx0w8an">Instagram</title>
+    <path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.254 1.216.598 1.772 1.153.509.5.902 1.105 1.153 1.772.247.637.415 1.363.465 2.428.047 1.066.06 1.405.06 4.122 0 2.717-.01 3.056-.06 4.122-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 01-1.153 1.772c-.5.508-1.105.902-1.772 1.153-.637.247-1.363.415-2.428.465-1.066.047-1.405.06-4.122.06-2.717 0-3.056-.01-4.122-.06-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 01-1.772-1.153 4.904 4.904 0 01-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12c0-2.717.01-3.056.06-4.122.05-1.066.217-1.79.465-2.428a4.88 4.88 0 011.153-1.772A4.897 4.897 0 015.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.013 9.283 2 12 2zm0 5a5 5 0 100 10 5 5 0 000-10zm6.5-.25a1.25 1.25 0 10-2.5 0 1.25 1.25 0 002.5 0zM12 9a3 3 0 110 6 3 3 0 010-6z"></path>
+</svg>
+
+  </a>
+  <a href="https://twitch.com/thepracticaldev" target="_blank" class="c-link c-link--icon-alone c-link--block mx-1" rel="noopener">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="amxq7cenvvjv6q0fzrc7thzdp3bo3i03" class="crayons-icon c-link__icon"><title id="amxq7cenvvjv6q0fzrc7thzdp3bo3i03">Twitch</title>
+    <path d="M4.3 3H21v11.7l-4.7 4.7h-3.9l-2.5 2.4H7v-2.4H3V6.2L4.3 3zM5 17.4h4v2.4h.095l2.5-2.4h3.877L19 13.872V5H5v12.4zM15 8h2v4.7h-2V8zm0 0h2v4.7h-2V8zm-5 0h2v4.7h-2V8z"></path>
+</svg>
+
+  </a>
+
+</div>
+
+    </div>
+  </div>
+  <div class="hamburger__overlay js-hamburger-trigger" bis_skin_checked="1"></div>
+</div>
+
+
+        <div id="active-broadcast" class="broadcast-wrapper" bis_skin_checked="1"></div>
+        <div id="message-notice" bis_skin_checked="1"></div>
+  <div id="base-payment-pointer" data-payment-pointer="$ilp.uphold.com/24HhrUGG7ekn" bis_skin_checked="1"></div>
+<div id="page-content" class="wrapper stories stories-show" data-current-page="stories-show" bis_skin_checked="1">
+  <div id="page-content-inner" data-follow-clicks-initialized="true" bis_skin_checked="1">
+    <div id="page-route-change" class="screen-reader-only" aria-live="polite" aria-atomic="true" bis_skin_checked="1"></div>
+    
+
+
+<style>
+  .html-variant-wrapper { display: none}
+</style>
+
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/webcomponents-loader.js" integrity="sha384-3HK5hxQbkFqOIxMbpROlRmRtYl2LBZ52t+tqcjzsmr9NJuOWQxl8RgQSyFvq2lhy" crossorigin="anonymous" defer=""></script>
+
+  <script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_webShare-f8df05a756fbe2bc6d85.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/webShare-6b135625ef86a19bde4b.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_articlePage-39321164ed9e9bc721c4.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/0-f48a6a10b4b68e0b68df.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/1-98874fa8a5b1eab6b54e.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/articlePage-accffd1eeb1d87d489ee.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_commentDropdowns-7f3d82b0744921014b79.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/commentDropdowns-f16fb9664696227864dd.chunk.js" defer="defer"></script>
+
+    <script type="application/ld+json">
+      {"@context":"http://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o"},"url":"https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o","image":["https://dev.to/social_previews/article/916341.png","https://dev.to/social_previews/article/916341.png","https://dev.to/social_previews/article/916341.png"],"publisher":{"@context":"http://schema.org","@type":"Organization","name":"DEV Community 👩‍💻👨‍💻","logo":{"@context":"http://schema.org","@type":"ImageObject","url":"https://res.cloudinary.com/practicaldev/image/fetch/s--t7tVouP9--/c_limit,f_png,fl_progressive,q_80,w_192/https://practicaldev-herokuapp-com.freetls.fastly.net/assets/devlogo-pwa-512.png","width":"192","height":"192"}},"headline":"\nHow to build a JWT Authenticated API with Lumen (8.3.1)","author":{"@context":"http://schema.org","@type":"Person","url":"https://dev.to/meherulsust","name":"meherulsust"},"datePublished":"2021-12-03T18:59:31Z","dateModified":"2021-12-06T10:28:47Z"}
+    </script>
+
+  
+<div class="crayons-layout crayons-layout--3-cols crayons-layout--article" bis_skin_checked="1">
+  <aside class="crayons-layout__sidebar-left" aria-label="Article actions">
+    <div class="crayons-article-actions print-hidden" bis_skin_checked="1">
+  <div class="crayons-article-actions__inner" bis_skin_checked="1">
+
+      <button id="reaction-butt-like" aria-label="Like" aria-pressed="false" class="crayons-reaction crayons-reaction--like crayons-tooltip__activator relative activated" data-category="like">
+    <span class="crayons-reaction__icon crayons-reaction__icon--inactive">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-hidden="true" class="crayons-icon">
+    <path d="M21.179 12.794l.013.014L12 22l-9.192-9.192.013-.014A6.5 6.5 0 0112 3.64a6.5 6.5 0 019.179 9.154zM4.575 5.383a4.5 4.5 0 000 6.364L12 19.172l7.425-7.425a4.5 4.5 0 10-6.364-6.364L8.818 9.626 7.404 8.21l3.162-3.162a4.5 4.5 0 00-5.99.334l-.001.001z"></path>
+</svg>
+
+    </span>
+    <span class="crayons-reaction__count" id="reaction-number-like">4</span>
+
+    <span data-testid="tooltip" class="crayons-tooltip__content">
+      Like
+    </span>
+</button>
+
+
+        <button id="reaction-butt-comment" aria-label="Jump to Comments" aria-pressed="false" class="crayons-reaction crayons-reaction--comment crayons-tooltip__activator relative" data-category="comment">
+            <span class="crayons-reaction__icon crayons-reaction__icon--inactive">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-hidden="true" class="crayons-icon">
+    <path d="M10 3h4a8 8 0 010 16v3.5c-5-2-12-5-12-11.5a8 8 0 018-8zm2 14h2a6 6 0 000-12h-4a6 6 0 00-6 6c0 3.61 2.462 5.966 8 8.48V17z"></path>
+</svg>
+
+            </span>
+            <span class="crayons-reaction__count" id="reaction-number-comment">2</span>
+
+            <span data-testid="tooltip" class="crayons-tooltip__content">
+              Jump to Comments
+            </span>
+        </button>
+
+      <button id="reaction-butt-readinglist" aria-label="Add to reading list" aria-pressed="false" class="crayons-reaction crayons-reaction--readinglist crayons-tooltip__activator relative activated" data-category="readinglist">
+    <span class="crayons-reaction__icon crayons-reaction__icon--inactive">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-hidden="true" class="crayons-icon">
+    <path d="M5 2h14a1 1 0 011 1v19.143a.5.5 0 01-.766.424L12 18.03l-7.234 4.536A.5.5 0 014 22.143V3a1 1 0 011-1zm13 2H6v15.432l6-3.761 6 3.761V4z"></path>
+</svg>
+
+    </span>
+    <span class="crayons-reaction__count" id="reaction-number-readinglist">5</span>
+
+    <span data-testid="tooltip" class="crayons-tooltip__content">
+      Save
+    </span>
+</button>
+
+    <div id="mod-actions-menu-btn-area" class="print-hidden hidden align-center" bis_skin_checked="1"></div>
+    <div class="align-center m:relative" bis_skin_checked="1">
+      <button id="article-show-more-button" aria-controls="article-show-more-dropdown" aria-expanded="false" aria-haspopup="true" class="dropbtn crayons-btn crayons-btn--ghost-dimmed crayons-btn--icon-rounded" aria-label="Share post options" data-initialized="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a8z95ex5d4zj91jbz548g1ikhk46lwfn" aria-hidden="true" class="crayons-icon dropdown-icon"><title id="a8z95ex5d4zj91jbz548g1ikhk46lwfn">More...</title><path fill-rule="evenodd" clip-rule="evenodd" d="M7 12a2 2 0 11-4 0 2 2 0 014 0zm7 0a2 2 0 11-4 0 2 2 0 014 0zm5 2a2 2 0 100-4 2 2 0 000 4z"></path></svg>
+
+      </button>
+
+      <div id="article-show-more-dropdown" class="crayons-dropdown side-bar left-2 right-2 m:right-auto m:left-100 s:left-auto mb-1 m:mb-0 top-unset bottom-100 m:top-0 m:bottom-unset" bis_skin_checked="1">
+        <div bis_skin_checked="1">
+          <button id="copy-post-url-button" class="flex justify-between crayons-link crayons-link--block w-100 bg-transparent border-0" data-posturl="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+            <span class="fw-bold">Copy link</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" id="article-copy-icon" role="img" aria-labelledby="aox42unn88ndlesdnnnlcytgvr44zvyb" aria-hidden="true" class="crayons-icon mx-2 shrink-0"><title id="aox42unn88ndlesdnnnlcytgvr44zvyb">Copy link</title>
+    <path d="M7 6V3a1 1 0 011-1h12a1 1 0 011 1v14a1 1 0 01-1 1h-3v3c0 .552-.45 1-1.007 1H4.007A1 1 0 013 21l.003-14c0-.552.45-1 1.007-1H7zm2 0h8v10h2V4H9v2zm-2 5v2h6v-2H7zm0 4v2h6v-2H7z"></path>
+</svg>
+
+          </button>
+          <div id="article-copy-link-announcer" aria-live="polite" class="crayons-notice crayons-notice--success my-2 p-1" hidden="" bis_skin_checked="1">Copied to Clipboard</div>
+        </div>
+
+        <div class="Desktop-only" bis_skin_checked="1">
+          <a target="_blank" class="crayons-link crayons-link--block" rel="noopener" href="https://twitter.com/intent/tweet?text=%22How%20to%20build%20a%20JWT%20Authenticated%20API%20with%20Lumen%20%288.3.1%29%22%20by%20meherulsust%20%23DEVCommunity%20https%3A%2F%2Fdev.to%2Fmeherulsust%2Fhow-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+            Share to Twitter
+          </a>
+          <a target="_blank" class="crayons-link crayons-link--block" rel="noopener" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3A%2F%2Fdev.to%2Fmeherulsust%2Fhow-to-build-a-jwt-authenticated-api-with-lumen-831-171o&amp;title=%0AHow%20to%20build%20a%20JWT%20Authenticated%20API%20with%20Lumen%20%288.3.1%29&amp;summary=Lumen%20is%20a%20the%20stunningly%20fast%20micro-framework%20by%20Laravel%20built%20to%20deliver%20microservices%20and...&amp;source=DEV%20Community%20%F0%9F%91%A9%E2%80%8D%F0%9F%92%BB%F0%9F%91%A8%E2%80%8D%F0%9F%92%BB">
+            Share to LinkedIn
+          </a>
+          <a target="_blank" class="crayons-link crayons-link--block" rel="noopener" href="https://www.reddit.com/submit?url=https%3A%2F%2Fdev.to%2Fmeherulsust%2Fhow-to-build-a-jwt-authenticated-api-with-lumen-831-171o&amp;title=%0AHow%20to%20build%20a%20JWT%20Authenticated%20API%20with%20Lumen%20%288.3.1%29">
+            Share to Reddit
+          </a>
+          <a target="_blank" class="crayons-link crayons-link--block" rel="noopener" href="https://news.ycombinator.com/submitlink?u=https%3A%2F%2Fdev.to%2Fmeherulsust%2Fhow-to-build-a-jwt-authenticated-api-with-lumen-831-171o&amp;t=%0AHow%20to%20build%20a%20JWT%20Authenticated%20API%20with%20Lumen%20%288.3.1%29">
+            Share to Hacker News
+          </a>
+          <a target="_blank" class="crayons-link crayons-link--block" rel="noopener" href="https://www.facebook.com/sharer.php?u=https%3A%2F%2Fdev.to%2Fmeherulsust%2Fhow-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+            Share to Facebook
+          </a>
+        </div>
+
+        <web-share-wrapper shareurl="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o" sharetitle="
+How to build a JWT Authenticated API with Lumen (8.3.1)" sharetext="Lumen is a the stunningly fast micro-framework by Laravel built to deliver microservices and..." template="web-share-button">
+        </web-share-wrapper>
+        <template id="web-share-button"></template>
+
+        <a href="https://dev.to/report-abuse" class="crayons-link crayons-link--block">Report Abuse</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+      <div class="html-variant-wrapper" id="html-variant-article-show-below-article" data-variant-id="382" bis_skin_checked="1">
+        <div bis_skin_checked="1"></div>
+      </div>
+
+  </aside>
+
+  <main id="main-content" class="crayons-layout__content grid gap-4">
+    <div class="article-wrapper" bis_skin_checked="1">
+
+
+      <article class="crayons-card crayons-article mb-4" id="article-show-container" data-article-id="916341" data-article-slug="how-to-build-a-jwt-authenticated-api-with-lumen-831-171o" data-author-id="323069" data-author-name="meherulsust" data-author-username="meherulsust" data-co-author-ids="" data-path="/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o" data-pin-path="/stories/feed/pinned_article" data-pinned-article-id="" data-published="true" data-scheduled="false">
+        <header class="crayons-article__header" id="main-title">
+
+          <div class="crayons-article__header__meta" bis_skin_checked="1">
+            <div class="flex s:items-start flex-col s:flex-row" bis_skin_checked="1">
+              <div id="action-space" class="crayons-article__actions mb-4 s:mb-0 s:order-last" bis_skin_checked="1"></div>
+              <div class="flex flex-1 mb-5 items-start" bis_skin_checked="1">
+                <div class="relative" bis_skin_checked="1">
+                    <a href="https://dev.to/meherulsust"><img class="radius-full align-middle" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/357f0255-fb75-4774-9fb0-3674569fc509.png" width="40" height="40" alt="meherulsust"></a>
+                </div>
+                <div class="pl-3 flex-1" bis_skin_checked="1">
+                  <a href="https://dev.to/meherulsust" class="crayons-link fw-bold">meherulsust</a>
+                  <p class="fs-xs color-base-60">
+                      Posted on <time datetime="2021-12-03T18:59:31Z" class="date" title="Saturday, December 4, 2021 at 1:59:31 AM">Dec 4, 2021</time>
+
+                      • Updated on <time datetime="2021-12-06T10:28:47Z" class="date" title="Monday, December 6, 2021 at 5:28:47 PM">Dec 6, 2021</time>
+
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <h1 class="fs-3xl m:fs-4xl l:fs-5xl fw-bold s:fw-heavy lh-tight mb-2 medium">
+              
+How to build a JWT Authenticated API with Lumen (8.3.1)
+            </h1>
+
+              <div class="spec__tags flex flex-wrap" bis_skin_checked="1">
+              </div>
+          </div>
+        </header>
+
+        <div class="crayons-article__main" bis_skin_checked="1">
+
+          <div class="crayons-article__body text-styles spec__body" data-article-id="916341" id="article-body" bis_skin_checked="1">
+            <p><a href="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/1mtrerq74u4hpqvzdhme.png" class="article-body-image-wrapper"><img src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/1mtrerq74u4hpqvzdhme.png" alt="Image description" loading="lazy" width="500" height="293"></a></p>
+
+<blockquote>
+<p>Lumen is a the stunningly fast micro-framework by Laravel built to deliver microservices and blazing fast APIs.</p>
+</blockquote>
+
+<p>In this tutorial, i would like to show you how to build a JWT Authenticated API with Lumen 8.</p>
+
+<p>Let's get started!</p>
+
+<p><strong>Server Requirements</strong></p>
+
+<ul>
+<li>PHP &gt;= 7.3</li>
+<li>OpenSSL PHP Extension</li>
+<li>PDO PHP Extension</li>
+<li>Mbstring PHP Extension</li>
+</ul>
+
+<p><strong>Installation</strong></p>
+
+<p>Install Lumen via composer<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>composer create-project --prefer-dist laravel/lumen blog-api
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Add <strong>config</strong> floder to the root directory and add auth.php file to the config folder, <strong>config/auth.php</strong> and add the code below into the auth.php file:<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+return [
+    'defaults' =&gt; [
+        'guard' =&gt; 'api',
+        'passwords' =&gt; 'users',
+    ],
+
+    'guards' =&gt; [
+        'api' =&gt; [
+            'driver' =&gt; 'jwt',
+            'provider' =&gt; 'users',
+        ],
+    ],
+
+    'providers' =&gt; [
+        'users' =&gt; [
+            'driver' =&gt; 'eloquent',
+            'model' =&gt; \App\Models\User::class
+        ]
+    ]
+];
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Install jwt-auth via composer<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>composer require tymon/jwt-auth
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Bootstrap file changes.</strong></p>
+
+<p>Add the following snippet to the bootstrap/app.php file under the root directory as follows:<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>// Uncomment this line
+
+$app-&gt;withFacades();
+
+$app-&gt;withEloquent();
+
+Then uncomment the auth middleware 
+
+$app-&gt;routeMiddleware([
+    'auth' =&gt; App\Http\Middleware\Authenticate::class,
+]);
+
+$app-&gt;register(App\Providers\AuthServiceProvider::class);
+
+// Add this line in the same file:
+
+$app-&gt;register(Tymon\JWTAuth\Providers\LumenServiceProvider::class);
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Generate secret key</strong></p>
+
+<p>To generate a key for you:<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>php artisan jwt:secret
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This will update your .env file with something like </p>
+
+<p>JWT_SECRET=secret_jwt_string_key</p>
+
+<p>It is the key that will be used to sign your tokens</p>
+
+<p><strong>Database Connection</strong></p>
+
+<p>Inside the <code>.env</code> file.<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=db_name
+DB_USERNAME=root
+DB_PASSWORD=
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Create Migration</strong></p>
+
+<p>Run this for user table migration below<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>php artisan make:migration create_users_table
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And replace it with the below code at </p>
+
+<blockquote>
+<p>database\migrations*_create_users_table.php<br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateUsersTable extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::create('users', function (Blueprint $table) {
+            $table-&gt;id();
+            $table-&gt;string('name');
+            $table-&gt;string('email')-&gt;unique();
+            $table-&gt;timestamp('email_verified_at')-&gt;nullable();
+            $table-&gt;string('password');
+            $table-&gt;rememberToken();
+            $table-&gt;timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::dropIfExists('users');
+    }
+}
+
+
+
+
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Migrate your database</strong><br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>$ php artisan migrate
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Create database seeder for a user by runing:<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>php artisan make:seeder UserTableSeeder
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And replace it with the below code at </p>
+
+<blockquote>
+<p>database\seeders\UserTableSeeder.php<br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+namespace Database\Seeders;
+
+use App\Models\User;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+
+
+class UserTableSeeder extends Seeder
+{
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
+    public function run()
+    {
+        $user = User::create([
+            'name' =&gt; 'Md.Meherul Islam', 
+            'email' =&gt; 'meherul@gmail.com',
+            'password' =&gt; Hash::make('12345678')
+        ]);
+    }
+}
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Then run the fllowing command to insert data into your database<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>php artisan db:seed --class=UserTableSeeder
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now create a files AuthController.php into </p>
+
+<blockquote>
+<p>app\Http\Controllers\AuthController.php<br>
+ with the below one<br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use  App\Models\User;
+
+class AuthController extends Controller
+{
+
+
+    public function __construct()
+    {
+        $this-&gt;middleware('auth:api', ['except' =&gt; ['login', 'refresh', 'logout']]);
+    }
+    /**
+     * Get a JWT via given credentials.
+     *
+     * @param  Request  $request
+     * @return Response
+     */
+    public function login(Request $request)
+    {
+
+        $this-&gt;validate($request, [
+            'email' =&gt; 'required|string',
+            'password' =&gt; 'required|string',
+        ]);
+
+        $credentials = $request-&gt;only(['email', 'password']);
+
+        if (! $token = Auth::attempt($credentials)) {
+            return response()-&gt;json(['message' =&gt; 'Unauthorized'], 401);
+        }
+
+        return $this-&gt;respondWithToken($token);
+    }
+
+     /**
+     * Get the authenticated User.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function me()
+    {
+        return response()-&gt;json(auth()-&gt;user());
+    }
+
+    /**
+     * Log the user out (Invalidate the token).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout()
+    {
+        auth()-&gt;logout();
+
+        return response()-&gt;json(['message' =&gt; 'Successfully logged out']);
+    }
+
+    /**
+     * Refresh a token.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this-&gt;respondWithToken(auth()-&gt;refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     *
+     * @param  string $token
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()-&gt;json([
+            'access_token' =&gt; $token,
+            'token_type' =&gt; 'bearer',
+            'user' =&gt; auth()-&gt;user(),
+            'expires_in' =&gt; auth()-&gt;factory()-&gt;getTTL() * 60 * 24
+        ]);
+    }
+}
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now replace User Model code into app\Models\User.php with below code.<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Auth\Authenticatable;
+use Laravel\Lumen\Auth\Authorizable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
+
+//this is new
+use Tymon\JWTAuth\Contracts\JWTSubject;
+
+class User extends Model implements AuthenticatableContract, AuthorizableContract, JWTSubject 
+{
+    use Authenticatable, Authorizable;
+
+    /**
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this-&gt;getKey();
+    }
+
+    /**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
+}
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Change route files into the routes\web.php with the code below :<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>&lt;?php
+
+/** @var \Laravel\Lumen\Routing\Router $router */
+
+/*
+|--------------------------------------------------------------------------
+| Application Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register all of the routes for an application.
+| It is a breeze. Simply tell Lumen the URIs it should respond to
+| and give it the Closure to call when that URI is requested.
+|
+*/
+
+
+
+
+$router-&gt;get('/', function () use ($router) {
+    echo "&lt;center&gt; Welcome &lt;/center&gt;";
+});
+
+$router-&gt;get('/version', function () use ($router) {
+    return $router-&gt;app-&gt;version();
+});
+
+Route::group([
+
+    'prefix' =&gt; 'api'
+
+], function ($router) {
+    Route::post('login', 'AuthController@login');
+    Route::post('logout', 'AuthController@logout');
+    Route::post('refresh', 'AuthController@refresh');
+    Route::post('user-profile', 'AuthController@me');
+
+});
+
+
+
+
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Test Lumen JWT Authentication API with Postman</strong></p>
+
+<p>Now for built-in PHP development server:<br>
+</p>
+
+<div class="highlight js-code-highlight" bis_skin_checked="1">
+<pre class="highlight plaintext"><code>php -S localhost:8000 -t public
+
+</code></pre>
+<div class="highlight__panel js-actions-panel" bis_skin_checked="1">
+<div class="highlight__panel-action js-fullscreen-code-action" bis_skin_checked="1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewBox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>We have created a secure REST API using JWT Authentication. To make the testing process easy and subtle, we will rely on Postman.</p>
+
+<p>Authentication APIs for Login, User Profile, Token Refresh and Logout.</p>
+
+<p>Method  Endpoint at post man</p>
+
+<ul>
+<li>POST  localhost:8000/api/login</li>
+<li>GET   localhost:8000/api/user-profile</li>
+<li>POST  localhost:8000/api/refresh</li>
+<li>POST  localhost:8000/api//logout</li>
+</ul>
+
+
+          </div>
+
+        </div>
+          <section id="comments" data-follow-button-container="true" data-updated-at="2022-09-29 10:18:29 UTC" class="text-padding mb-4 border-t-1 border-0 border-solid border-base-10">
+      <header class="relative flex justify-between items-center mb-6">
+        <div class="flex items-center" bis_skin_checked="1">
+          <h2 class="crayons-subtitle-1">
+            Top comments <span class="js-comments-count" data-comments-count="2">(2)</span>
+          </h2>
+          <button class="c-btn c-btn--ghost crayons-btn--icon-left" id="toggle-comments-sort-dropdown" aria-controls="comments-sort-dropdown-container" aria-expanded="false" aria-label="Sort comments" aria-haspopup="true" data-initialized="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" class="mt-2"><title>Crown</title>
+    <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
+</svg>
+
+          </button>
+        </div>
+
+        <nav class="crayons-dropdown p-4" id="comments-sort-dropdown-container" aria-labelledby="comments-sort-title">
+            <h3 id="comments-sort-title" class="mb-3">Sort discussion: </h3>
+            <ul class="comments-sort-dropdown__list">
+              <li class="comment-sort-option">
+  <a href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o?comments_sort=top#toggle-comments-sort-dropdown" class="comment-sort-option__header pl-7 pb-0 crayons-link--block block" aria-describedby="top-description-text" aria-current="page">
+    <div bis_skin_checked="1">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" role="img" aria-labelledby="a2f9oyep6rpsh6tjm20x38dz8us1zc3x" aria-hidden="true" class="crayons-icon"><title id="a2f9oyep6rpsh6tjm20x38dz8us1zc3x">Selected Sort Option</title>
+    <path d="M10 15.172l9.192-9.193 1.415 1.414L10 18l-6.364-6.364 1.414-1.414 4.95 4.95z"></path>
+</svg>
+
+       Top
+    </div>
+     <div id="top-description-text" class="crayons-field__description" bis_skin_checked="1">
+      Most upvoted and relevant comments will be first
+    </div>
+  </a>
+</li>
+
+              <li class="comment-sort-option">
+  <a href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o?comments_sort=latest#toggle-comments-sort-dropdown" class="comment-sort-option__header pl-7 pb-0 crayons-link--block block" aria-describedby="latest-description-text" aria-current="">
+    <div bis_skin_checked="1">
+      
+       Latest
+    </div>
+     <div id="latest-description-text" class="crayons-field__description" bis_skin_checked="1">
+      Most recent comments will be first
+    </div>
+  </a>
+</li>
+
+              <li class="comment-sort-option">
+  <a href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o?comments_sort=oldest#toggle-comments-sort-dropdown" class="comment-sort-option__header pl-7 pb-0 crayons-link--block block" aria-describedby="oldest-description-text" aria-current="">
+    <div bis_skin_checked="1">
+      
+       Oldest
+    </div>
+     <div id="oldest-description-text" class="crayons-field__description" bis_skin_checked="1">
+      The oldest comments will be first
+    </div>
+  </a>
+</li>
+
+            </ul>
+        </nav>
+
+        <div id="comment-subscription" class="print-hidden" bis_skin_checked="1"><div class="static" bis_skin_checked="1"><div role="group" aria-label="Comment subscription options" class="crayons-btn-group" bis_skin_checked="1"><button class="crayons-btn crayons-btn--outlined" type="button" data-tracking-name="comment_subscription_toggle">Subscribe</button></div></div>
+          
+        </div>
+      </header>
+
+      <div id="comments-container" data-testid="comments-container" data-commentable-id="916341" data-commentable-type="Article" data-has-recent-comment-activity="false" bis_skin_checked="1">
+
+          <div id="response-templates-data" class="hidden" bis_skin_checked="1"></div>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_validateFileInputs-799220d9db2ff4fd7703.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/validateFileInputs-0a4313aa85cd3989bed9.chunk.js" defer="defer"></script>
+
+
+<form class="comment-form print-hidden" id="new_comment" action="https://dev.to/comments" accept-charset="UTF-8" method="post"><input name="utf8" type="hidden" value="✓" autocomplete="off">
+
+  <input type="hidden" name="authenticity_token" value="NOTHING" id="new_comment_authenticity_token">
+
+    <input value="916341" autocomplete="off" type="hidden" name="comment[commentable_id]" id="comment_commentable_id">
+    <input value="Article" autocomplete="off" type="hidden" name="comment[commentable_type]" id="comment_commentable_type">
+    
+
+  <span class="crayons-avatar m:crayons-avatar--l mr-2 shrink-0">
+    <img src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/devlogo-pwa-512.png" width="32" height="32" alt="pic" class="crayons-avatar__image overflow-hidden" id="comment-primary-user-profile--avatar" loading="lazy">
+  </span>
+  <div class="comment-form__inner" bis_skin_checked="1">
+    <div class="comment-form__field" data-tracking-name="comment_form_textfield" bis_skin_checked="1">
+      <textarea placeholder="Add to the discussion" onfocus="handleFocus(event)" onkeyup="handleKeyUp(event)" onkeydown="handleKeyDown(event)" oninput="handleChange(event)" id="text-area" required="required" class="crayons-textfield comment-textarea crayons-textfield--ghost" aria-label="Add a comment to the discussion" name="comment[body_markdown]"></textarea>
+
+    </div>
+
+    <div class="response-templates-container crayons-card crayons-card--secondary p-4 mb-4 comment-form__templates fs-base hidden" bis_skin_checked="1">
+      <header class="mb-3">
+        <button type="button" class="crayons-btn personal-template-button active" data-target-type="personal" data-form-id="new_comment">Personal</button>
+        <button type="button" class="crayons-btn moderator-template-button hidden" data-target-type="moderator" data-form-id="new_comment">Trusted User</button>
+      </header>
+
+      <img class="loading-img hidden" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/loading-ellipsis-b714cf681fd66c853ff6f03dd161b77aa3c80e03cdc06f478b695f42770421e9.svg" alt="loading" loading="lazy">
+
+      <div class="personal-responses-container" bis_skin_checked="1">
+      </div>
+      <div class="moderator-responses-container hidden" bis_skin_checked="1">
+      </div>
+
+      <a target="_blank" rel="noopener nofollow" href="https://dev.to/settings/response-templates">
+        Create template
+      </a>
+      <p>Templates let you quickly answer FAQs or store snippets for re-use.</p>
+    </div>
+
+    <div class="comment-form__preview text-styles text-styles--secondary" id="preview-div" bis_skin_checked="1"></div>
+
+    <div class="comment-form__buttons mb-4" bis_skin_checked="1">
+      <button type="submit" class="crayons-btn mr-2 js-btn-enable" onclick="validateField(event)" data-tracking-name="comment_submit_button" disabled="">Submit</button>
+      <button type="button" class="preview-toggle crayons-btn crayons-btn--secondary comment-action-preview js-btn-enable mr-2" data-tracking-name="comment_preview_button" disabled="">Preview</button>
+      <a href="https://dev.to/404.html" class="dismiss-edit-comment crayons-btn crayons-btn--ghost js-btn-dismiss hidden">Dismiss</a>
+    </div>
+  </div>
+
+  <div class="code-of-conduct" id="toggle-code-of-conduct-checkbox" bis_skin_checked="1"></div>
+</form>
+
+
+        <div class="comments" id="comment-trees-container" bis_skin_checked="1">
+                <details class="comment-wrapper js-comment-wrapper comment-wrapper--deep-0
+                    root
+                    " open="">
+      <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
+        <span class="m:mx-1 inline-block align-middle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a64kopt3a6h5vgje69szc3c5l1qyy168" class="crayons-icon expanded"><title id="a64kopt3a6h5vgje69szc3c5l1qyy168">Collapse</title>
+    <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
+</svg>
+
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aseizbligs4y9n02fmhfe1cgom3sn3m8" class="crayons-icon collapsed"><title id="aseizbligs4y9n02fmhfe1cgom3sn3m8">Expand</title>
+    <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
+</svg>
+
+        </span>
+        <span class="js-collapse-comment-content inline-block align-middle"></span>
+      </summary>
+  <div id="comment-node-940316" class="
+      comment single-comment-node
+      
+      root
+      comment--deep-0
+      
+    " data-comment-id="940316" data-path="/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/21d00" data-comment-author-id="919654" data-content-user-id="919654" bis_skin_checked="1">
+    
+<div class="comment__inner" bis_skin_checked="1">
+    <a href="https://dev.to/abdullahitbeam" class="shrink-0 crayons-avatar m:crayons-avatar--l mt-4 m:mt-3">
+    <img class="crayons-avatar__image" width="32" height="32" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/d03cc994-202b-4ab0-a49b-eda0a0af4c9d.jpeg" alt="abdullahitbeam profile image" loading="lazy">
+  </a>
+
+
+  <div class="inner-comment comment__details" bis_skin_checked="1">
+    <div class="comment__content crayons-card" bis_skin_checked="1">
+        
+
+
+        <div class="comment__header" bis_skin_checked="1">
+  <a href="https://dev.to/abdullahitbeam" class="crayons-link crayons-link--secondary flex items-center fw-medium m:hidden">
+    <span class="js-comment-username">abdullahitbeam</span>
+  </a>
+  <div class="profile-preview-card relative mb-4 s:mb-0 fw-medium hidden m:block" bis_skin_checked="1">
+    <button id="comment-profile-preview-trigger-940316" aria-controls="comment-profile-preview-content-940316" class="profile-preview-card__trigger p-1 -my-1 -ml-1 crayons-btn crayons-btn--ghost" aria-label="abdullahitbeam profile details" aria-expanded="false" aria-haspopup="true" data-initialized="true">
+      abdullahitbeam
+    </button>
+    <div id="comment-profile-preview-content-940316" class="profile-preview-card__content p-4 pt-0 branded-7 crayons-dropdown reverse" style="--card-color: #000000; border-top-color: var(--card-color);" data-testid="profile-preview-card" data-repositioning-dropdown="true" bis_skin_checked="1">
+    <div class="gap-4 grid" bis_skin_checked="1">
+        <div class="-mt-4" bis_skin_checked="1">
+  <a href="https://dev.to/abdullahitbeam" class="flex">
+    <span class="crayons-avatar crayons-avatar--xl  mr-2 shrink-0">
+      <img src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/d03cc994-202b-4ab0-a49b-eda0a0af4c9d(1).jpeg" class="crayons-avatar__image" alt="" loading="lazy">
+    </span>
+    <span class="crayons-link crayons-subtitle-2 mt-5">abdullahitbeam</span>
+  </a>
+</div>
+
+<div class="print-hidden" bis_skin_checked="1">
+  <button name="button" type="button" data-info="{&quot;className&quot;:&quot;User&quot;,&quot;style&quot;:&quot;&quot;,&quot;id&quot;:919654,&quot;name&quot;:&quot;abdullahitbeam&quot;}" class="crayons-btn follow-action-button whitespace-nowrap w-100 follow-user" aria-label="Follow user: abdullahitbeam" aria-pressed="false" data-fetched="fetched">Follow</button>
+</div>
+
+  <div class="user-metadata-details" bis_skin_checked="1">
+    <ul class="user-metadata-details-inner">
+          <li>
+            <div class="key" bis_skin_checked="1">
+              Work
+            </div>
+            <div class="value" bis_skin_checked="1">
+              Laravel Developer
+            </div>
+          </li>
+      <li>
+        <div class="key" bis_skin_checked="1">
+          Joined
+        </div>
+        <div class="value" bis_skin_checked="1">
+          <time datetime="2022-09-02T10:52:26Z" class="date" title="Friday, September 2, 2022 at 5:52:26 PM">Sep 2, 2022</time>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+    </div>
+</div>
+
+  </div>
+
+  <span class="color-base-30 px-2 m:pl-0" role="presentation">•</span>
+
+<a href="https://dev.to/abdullahitbeam/comment/21d00" class="comment-date crayons-link crayons-link--secondary fs-s">
+  <time datetime="2022-09-02T11:05:51Z" class="date-no-year" title="Friday, September 2, 2022 at 6:05:51 PM">Sep 2</time>
+
+</a>
+
+
+  <div class="comment__dropdown" data-tracking-name="comment_dropdown" bis_skin_checked="1">
+    <button id="comment-dropdown-trigger-940316" aria-controls="comment-dropdown-940316" aria-expanded="false" class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon " aria-label="Toggle dropdown menu" aria-haspopup="true" data-initialized="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a7arbt9hi2h7hn96bj2e8m4d6e6d6qf0" class="crayons-icon pointer-events-none"><title id="a7arbt9hi2h7hn96bj2e8m4d6e6d6qf0">Dropdown menu</title>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
+</svg>
+
+    </button>
+    <div id="comment-dropdown-940316" class="crayons-dropdown right-1 s:right-0 s:left-auto fs-base dropdown" bis_skin_checked="1">
+      <ul class="m-0">
+        <li><a href="https://dev.to/abdullahitbeam/comment/21d00" class="crayons-link crayons-link--block permalink-copybtn" aria-label="Copy link to abdullahitbeam&#39;s comment" data-no-instant="">Copy link</a></li>
+        <li class="comment-actions hidden" data-user-id="919654" data-action="settings-button" data-path="https://dev.to/abdullahitbeam/comment/21d00/settings" aria-label="Go to abdullahitbeam&#39;s comment settings"></li>
+        <li class="comment-actions hidden" data-action="hide-button" data-commentable-user-id="323069" data-user-id="919654">
+            <button class="flex justify-between crayons-link crayons-link--block w-100 bg-transparent border-0 hide-comment" data-hide-type="hide" data-comment-id="940316" data-comment-url="https://dev.to/abdullahitbeam/comment/21d00" aria-label="Hide abdullahitbeam&#39;s comment">
+              Hide
+            </button>
+        </li>
+        <li class="mod-actions hidden mod-actions-comment-button" data-path="https://dev.to/abdullahitbeam/comment/21d00/mod" aria-label="Moderate abdullahitbeam&#39;s comment"></li>
+        <li class="report-abuse-link-wrapper" data-path="/report-abuse?url=https://dev.to/abdullahitbeam/comment/21d00" aria-label="Report abdullahitbeam&#39;s comment as abusive or violating our code of conduct and/or terms and conditions"><a href="https://dev.to/report-abuse?url=https://dev.to/abdullahitbeam/comment/21d00" class="crayons-link crayons-link--block">Report abuse</a></li>
+        <li class="current-user-actions"></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+
+        <div class="
+            comment__body
+            text-styles
+            text-styles--secondary
+            body
+            
+            
+          " bis_skin_checked="1">
+          <p>Method Illuminate\Auth\RequestGuard::attempt does not exist.<br>
+I am facing this issue </p>
+
+
+        </div>
+
+    </div>
+
+    <footer class="comment__footer print-hidden">
+  <button class="crayons-tooltip__activator crayons-btn crayons-btn--ghost crayons-btn--icon-left crayons-btn--s mr-1 reaction-like inline-flex reaction-button" id="button-for-comment-940316" data-comment-id="940316" aria-label="like" data-tracking-name="comment_heart_button">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a8dgjwta2pm2r65x67hc4w2rk7f90e14" class="crayons-icon reaction-icon not-reacted"><title id="a8dgjwta2pm2r65x67hc4w2rk7f90e14">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a1gzngq4625r9o0pruw556g3lwwmtnvk" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a1gzngq4625r9o0pruw556g3lwwmtnvk">Like comment: </title>
+    <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
+</svg>
+
+    <span class="reactions-count">1</span><span class="reactions-label hidden m:inline-block">&nbsp;like</span>
+    <span data-testid="tooltip" class="crayons-tooltip__content">
+      Like
+    </span>
+  </button>
+
+      <a class="actions crayons-btn crayons-btn--ghost crayons-btn--s crayons-btn--icon-left toggle-reply-form mr-1 inline-flex" href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o#/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/new/21d00" data-comment-id="940316" data-path="/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/21d00" data-tracking-name="comment_reply_button" data-testid="reply-button-940316" rel="nofollow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aq13dcetiujx2fix5zl9j3dxdya9ul5k" class="crayons-icon reaction-icon not-reacted"><title id="aq13dcetiujx2fix5zl9j3dxdya9ul5k">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+
+        <span class="hidden m:inline-block">Reply</span>
+      </a>
+
+</footer>
+
+  </div>
+</div>
+
+
+  </div>
+    </details>
+
+    <details class="comment-wrapper js-comment-wrapper comment-wrapper--deep-0
+                    root
+                    " open="">
+      <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
+        <span class="m:mx-1 inline-block align-middle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ar1ufrsoudywy1cq61ylp2usrbmmsr09" class="crayons-icon expanded"><title id="ar1ufrsoudywy1cq61ylp2usrbmmsr09">Collapse</title>
+    <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
+</svg>
+
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="af0nkml2glfqqwx3sryr49szz83ikur0" class="crayons-icon collapsed"><title id="af0nkml2glfqqwx3sryr49szz83ikur0">Expand</title>
+    <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
+</svg>
+
+        </span>
+        <span class="js-collapse-comment-content inline-block align-middle"></span>
+      </summary>
+  <div id="comment-node-831395" class="
+      comment single-comment-node
+      
+      root
+      comment--deep-0
+      
+    " data-comment-id="831395" data-path="/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/1l7mj" data-comment-author-id="791350" data-content-user-id="791350" bis_skin_checked="1">
+    
+<div class="comment__inner" bis_skin_checked="1">
+    <a href="https://dev.to/marcmsk" class="shrink-0 crayons-avatar m:crayons-avatar--l mt-4 m:mt-3">
+    <img class="crayons-avatar__image" width="32" height="32" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/42fe24ea-406f-42c5-8faf-b1c71309c0b7.jpeg" alt="marcmsk profile image" loading="lazy">
+  </a>
+
+
+  <div class="inner-comment comment__details" bis_skin_checked="1">
+    <div class="comment__content crayons-card" bis_skin_checked="1">
+        
+
+
+        <div class="comment__header" bis_skin_checked="1">
+  <a href="https://dev.to/marcmsk" class="crayons-link crayons-link--secondary flex items-center fw-medium m:hidden">
+    <span class="js-comment-username">marcm</span>
+  </a>
+  <div class="profile-preview-card relative mb-4 s:mb-0 fw-medium hidden m:block" bis_skin_checked="1">
+    <button id="comment-profile-preview-trigger-831395" aria-controls="comment-profile-preview-content-831395" class="profile-preview-card__trigger p-1 -my-1 -ml-1 crayons-btn crayons-btn--ghost" aria-label="marcm profile details" aria-expanded="false" aria-haspopup="true" data-initialized="true">
+      marcm
+    </button>
+    <div id="comment-profile-preview-content-831395" class="profile-preview-card__content p-4 pt-0 branded-7 crayons-dropdown reverse" style="--card-color: #000000; border-top-color: var(--card-color);" data-testid="profile-preview-card" data-repositioning-dropdown="true" bis_skin_checked="1">
+    <div class="gap-4 grid" bis_skin_checked="1">
+        <div class="-mt-4" bis_skin_checked="1">
+  <a href="https://dev.to/marcmsk" class="flex">
+    <span class="crayons-avatar crayons-avatar--xl  mr-2 shrink-0">
+      <img src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/42fe24ea-406f-42c5-8faf-b1c71309c0b7(1).jpeg" class="crayons-avatar__image" alt="" loading="lazy">
+    </span>
+    <span class="crayons-link crayons-subtitle-2 mt-5">marcm</span>
+  </a>
+</div>
+
+<div class="print-hidden" bis_skin_checked="1">
+  <button name="button" type="button" data-info="{&quot;className&quot;:&quot;User&quot;,&quot;style&quot;:&quot;&quot;,&quot;id&quot;:791350,&quot;name&quot;:&quot;marcm&quot;}" class="crayons-btn follow-action-button whitespace-nowrap w-100 follow-user" aria-label="Follow user: marcm" aria-pressed="false" data-fetched="fetched">Follow</button>
+</div>
+
+  <div class="user-metadata-details" bis_skin_checked="1">
+    <ul class="user-metadata-details-inner">
+      <li>
+        <div class="key" bis_skin_checked="1">
+          Joined
+        </div>
+        <div class="value" bis_skin_checked="1">
+          <time datetime="2022-01-12T14:48:08Z" class="date" title="Wednesday, January 12, 2022 at 9:48:08 PM">Jan 12, 2022</time>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+    </div>
+</div>
+
+  </div>
+
+  <span class="color-base-30 px-2 m:pl-0" role="presentation">•</span>
+
+<a href="https://dev.to/marcmsk/comment/1l7mj" class="comment-date crayons-link crayons-link--secondary fs-s">
+  <time datetime="2022-01-12T14:49:35Z" class="date-no-year" title="Wednesday, January 12, 2022 at 9:49:35 PM">Jan 12</time>
+
+</a>
+
+
+  <div class="comment__dropdown" data-tracking-name="comment_dropdown" bis_skin_checked="1">
+    <button id="comment-dropdown-trigger-831395" aria-controls="comment-dropdown-831395" aria-expanded="false" class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon " aria-label="Toggle dropdown menu" aria-haspopup="true" data-initialized="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a40gsd7dz9m1etepe4xh9u7xu0puxaa6" class="crayons-icon pointer-events-none"><title id="a40gsd7dz9m1etepe4xh9u7xu0puxaa6">Dropdown menu</title>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
+</svg>
+
+    </button>
+    <div id="comment-dropdown-831395" class="crayons-dropdown right-1 s:right-0 s:left-auto fs-base dropdown" bis_skin_checked="1">
+      <ul class="m-0">
+        <li><a href="https://dev.to/marcmsk/comment/1l7mj" class="crayons-link crayons-link--block permalink-copybtn" aria-label="Copy link to marcm&#39;s comment" data-no-instant="">Copy link</a></li>
+        <li class="comment-actions hidden" data-user-id="791350" data-action="settings-button" data-path="https://dev.to/marcmsk/comment/1l7mj/settings" aria-label="Go to marcm&#39;s comment settings"></li>
+        <li class="comment-actions hidden" data-action="hide-button" data-commentable-user-id="323069" data-user-id="791350">
+            <button class="flex justify-between crayons-link crayons-link--block w-100 bg-transparent border-0 hide-comment" data-hide-type="hide" data-comment-id="831395" data-comment-url="https://dev.to/marcmsk/comment/1l7mj" aria-label="Hide marcm&#39;s comment">
+              Hide
+            </button>
+        </li>
+        <li class="mod-actions hidden mod-actions-comment-button" data-path="https://dev.to/marcmsk/comment/1l7mj/mod" aria-label="Moderate marcm&#39;s comment"></li>
+        <li class="report-abuse-link-wrapper" data-path="/report-abuse?url=https://dev.to/marcmsk/comment/1l7mj" aria-label="Report marcm&#39;s comment as abusive or violating our code of conduct and/or terms and conditions"><a href="https://dev.to/report-abuse?url=https://dev.to/marcmsk/comment/1l7mj" class="crayons-link crayons-link--block">Report abuse</a></li>
+        <li class="current-user-actions"></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+
+        <div class="
+            comment__body
+            text-styles
+            text-styles--secondary
+            body
+            
+            
+          " bis_skin_checked="1">
+          <p>GET localhost:8000/api/user-profile in the last list is not correct right?<br>
+It should be POST as for other routes.</p>
+
+
+        </div>
+
+    </div>
+
+    <footer class="comment__footer print-hidden">
+  <button class="crayons-tooltip__activator crayons-btn crayons-btn--ghost crayons-btn--icon crayons-btn--s mr-1 reaction-like inline-flex reaction-button" id="button-for-comment-831395" data-comment-id="831395" aria-label="like" data-tracking-name="comment_heart_button">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ak59w35nlwyslowu7wk19617sboxlltx" class="crayons-icon reaction-icon not-reacted"><title id="ak59w35nlwyslowu7wk19617sboxlltx">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a8w5zx67vd8ig56eft5yy5uurb896542" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a8w5zx67vd8ig56eft5yy5uurb896542">Like comment: </title>
+    <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
+</svg>
+
+    <span class="reactions-count"></span><span class="reactions-label hidden m:inline-block"></span>
+    <span data-testid="tooltip" class="crayons-tooltip__content">
+      Like
+    </span>
+  </button>
+
+      <a class="actions crayons-btn crayons-btn--ghost crayons-btn--s crayons-btn--icon-left toggle-reply-form mr-1 inline-flex" href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o#/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/new/1l7mj" data-comment-id="831395" data-path="/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o/comments/1l7mj" data-tracking-name="comment_reply_button" data-testid="reply-button-831395" rel="nofollow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="arvplh71v2j3aq54v6qfdwjtuhjjm3um" class="crayons-icon reaction-icon not-reacted"><title id="arvplh71v2j3aq54v6qfdwjtuhjjm3um">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+
+        <span class="hidden m:inline-block">Reply</span>
+      </a>
+
+</footer>
+
+  </div>
+</div>
+
+
+  </div>
+    </details>
+
+
+        </div>
+      </div>
+
+      <div class="align-center" bis_skin_checked="1">
+
+
+  <nav class="fs-s align-center block" aria-label="Conduct controls">
+  <a href="https://dev.to/code-of-conduct" class="crayons-link crayons-link--secondary">Code of Conduct</a>
+  <span class="opacity-25 px-2" role="presentation">•</span>
+  <a href="https://dev.to/report-abuse" class="crayons-link crayons-link--secondary">Report abuse</a>
+</nav>
+
+</div>
+
+  </section>
+  <div id="hide-comments-modal" class="hidden" bis_skin_checked="1">
+  <form id="hide-comments-modal__form" class="hide-comments-modal__form" data-type="json" action="https://dev.to/comments/hide" accept-charset="UTF-8" data-remote="true" method="post"><input name="utf8" type="hidden" value="✓" autocomplete="off"><input type="hidden" name="_method" value="patch" autocomplete="off"><input type="hidden" name="authenticity_token" value="g12b_-Wiiw_q1lorOFzi_AhsarN_Xp_NAVOoShmZAOTg6nv5H0OU8b3i-nkjLjBKw6XMPiucNv4aIObpc7s97Q" autocomplete="off">
+    <div class="hide-comments-modal__content" bis_skin_checked="1">
+      <p class="pb-2">
+        Are you sure you want to hide this comment? It will become hidden in your post, but will still be visible via the comment's <a id="hide-comments-modal__comment-permalink" href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o#">permalink</a>.
+      </p>
+      <label class="crayons-field crayons-field--checkbox my-2">
+        <input name="hide_children" type="hidden" value="0" autocomplete="off"><input class="hide_children crayons-checkbox" type="checkbox" value="1" name="hide_children" id="hide_children">
+        <p class="crayons-field__label">Hide child comments as well</p>
+      </label>
+      <p class="pb-4 pt-2">
+        <button type="submit" class="crayons-btn">
+          Confirm
+        </button>
+      </p>
+    </div>
+</form>  <p class="fs-s color-base-60">For further actions, you may consider blocking this person and/or <a id="hide-comments-modal__report-link" href="https://dev.to/report-abuse">reporting abuse</a></p>
+</div>
+
+
+
+      </article>
+
+          <div class="crayons-card crayons-card--secondary p-4 crayons-sponsorship-article" data-display-unit="" data-id="228" data-category-click="click" data-category-impression="impression" data-context-type="home" bis_skin_checked="1" data-impression-recorded="true">
+            <h2>  <a href="https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o#friends-dont-let-friends-browse-without-dark-mode" class="anchor">  </a>  🌚 Friends don't let friends browse without <a href="https://dev.to/settings/customization">dark mode</a>.</h2><p>Sorry, it's true.</p>
+          </div>
+
+          <section class="crayons-card crayons-card--secondary text-padding mb-4 print-hidden" id="bottom-content-read-next">
+    <h2 class="crayons-subtitle-1">Read next</h2>
+      <a href="https://dev.to/miguelcrespo/how-to-render-pretty-code-blocks-using-contentful-rich-text-editor-and-gatsby-46a5" data-preload-image="" class="crayons-link mt-6 block">
+        <div class="flex items-center" bis_skin_checked="1">
+          <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
+            <img loading="lazy" alt="miguelcrespo profile image" class="crayons-avatar__image" width="100" height="100" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/5839623.jpeg">
+          </span>
+          <div bis_skin_checked="1">
+            <h3 class="fs-xl mb-0 lh-tight">How to render pretty code blocks using Contentful Rich Text Editor and Gatsby</h3>
+            <p class="opacity-75 pt-1">
+              Miguel Crespo - <time datetime="2022-09-28T21:14:38Z">Sep 28</time>
+            </p>
+          </div>
+        </div>
+      </a>
+      <a href="https://dev.to/abubakarismail/day-8-i4g10daysofcodechallenge-26db" data-preload-image="" class="crayons-link mt-6 block">
+        <div class="flex items-center" bis_skin_checked="1">
+          <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
+            <img loading="lazy" alt="abubakarismail profile image" class="crayons-avatar__image" width="100" height="100" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/15888183-ec3e-4e26-b33b-762d80e170cb.jpg">
+          </span>
+          <div bis_skin_checked="1">
+            <h3 class="fs-xl mb-0 lh-tight">Day 8 I4G10daysofCodeChallenge</h3>
+            <p class="opacity-75 pt-1">
+              Abubakar Sadiq Ismail - <time datetime="2022-09-28T20:57:07Z">Sep 28</time>
+            </p>
+          </div>
+        </div>
+      </a>
+      <a href="https://dev.to/catur/perbedaan-firebase-admin-dan-firebase-client-289m" data-preload-image="https://res.cloudinary.com/practicaldev/image/fetch/s--1CTAI22c--/c_imagga_scale,f_auto,fl_progressive,h_420,q_auto,w_1000/https://dev-to-uploads.s3.amazonaws.com/uploads/articles/jyxicg49y0sa3pqfl8uh.png" class="crayons-link mt-6 block">
+        <div class="flex items-center" bis_skin_checked="1">
+          <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
+            <img loading="lazy" alt="catur profile image" class="crayons-avatar__image" width="100" height="100" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/33cebc06-6b0d-4e95-b14e-f1738143f14e.jpg">
+          </span>
+          <div bis_skin_checked="1">
+            <h3 class="fs-xl mb-0 lh-tight">Perbedaan Firebase Admin dan Firebase Client</h3>
+            <p class="opacity-75 pt-1">
+              Catur Wicaksono - <time datetime="2022-09-29T04:47:33Z">Sep 29</time>
+            </p>
+          </div>
+        </div>
+      </a>
+      <a href="https://dev.to/code_regina/october-2022-creative-fun-things-in-the-works--37k9" data-preload-image="" class="crayons-link mt-6 block">
+        <div class="flex items-center" bis_skin_checked="1">
+          <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
+            <img loading="lazy" alt="code_regina profile image" class="crayons-avatar__image" width="100" height="100" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/86a3a724-8c04-4d48-9670-abc37e04e4bf.png">
+          </span>
+          <div bis_skin_checked="1">
+            <h3 class="fs-xl mb-0 lh-tight">October 2022 !!creative fun things in the works !!</h3>
+            <p class="opacity-75 pt-1">
+              Code_Regina - <time datetime="2022-09-28T20:43:32Z">Sep 28</time>
+            </p>
+          </div>
+        </div>
+      </a>
+  </section>
+
+    </div>
+  </main>
+
+  <aside class="crayons-layout__sidebar-right" aria-label="Author details">
+      <div class="crayons-article-sticky grid gap-4 break-word" id="article-show-primary-sticky-nav" bis_skin_checked="1">
+  <div class="crayons-card crayons-card--secondary branded-7 p-4 pt-0 gap-4 grid" style="border-top-color: #070c34;" bis_skin_checked="1">
+    <div class="-mt-4" bis_skin_checked="1">
+  <a href="https://dev.to/meherulsust" class="flex">
+    <span class="crayons-avatar crayons-avatar--xl  mr-2 shrink-0">
+      <img src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/357f0255-fb75-4774-9fb0-3674569fc509(1).png" class="crayons-avatar__image" alt="" loading="lazy">
+    </span>
+    <span class="crayons-link crayons-subtitle-2 mt-5">meherulsust</span>
+  </a>
+</div>
+
+<div class="print-hidden" bis_skin_checked="1">
+  <button name="button" type="button" data-info="{&quot;className&quot;:&quot;User&quot;,&quot;style&quot;:&quot;&quot;,&quot;id&quot;:323069,&quot;name&quot;:&quot;meherulsust&quot;}" class="crayons-btn follow-action-button whitespace-nowrap w-100 follow-user" aria-label="Follow user: meherulsust" aria-pressed="false" data-fetched="fetched">Follow</button>
+</div>
+  <div class="color-base-70" bis_skin_checked="1">
+    I am a PHP developer.I am developing Web application using PHP,MySql,Ajax,JavaScript,HTML Codeiginiter,Laravel and React js.
+  </div>
+
+  <div class="user-metadata-details" bis_skin_checked="1">
+    <ul class="user-metadata-details-inner">
+        <li>
+          <div class="key" bis_skin_checked="1">
+            Location
+          </div>
+          <div class="value" bis_skin_checked="1">
+            Bangladesh
+          </div>
+        </li>
+          <li>
+            <div class="key" bis_skin_checked="1">
+              Work
+            </div>
+            <div class="value" bis_skin_checked="1">
+              PHP Developer at Vivasoft Ltd
+            </div>
+          </li>
+      <li>
+        <div class="key" bis_skin_checked="1">
+          Joined
+        </div>
+        <div class="value" bis_skin_checked="1">
+          <time datetime="2020-01-24T02:23:06Z" class="date">Jan 24, 2020</time>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  </div>
+
+      <div class="crayons-card crayons-card--secondary" bis_skin_checked="1">
+        <header class="crayons-card__header">
+          <h3 class="crayons-subtitle-2">
+            More from <a href="https://dev.to/meherulsust">meherulsust</a>
+          </h3>
+        </header>
+        <div bis_skin_checked="1">
+            <a class="crayons-link crayons-link--contentful" href="https://dev.to/meherulsust/system-design-in-software-development-6o4">
+              System Design in Software Development
+              <div class="crayons-link__secondary -ml-1" bis_skin_checked="1">
+              </div>
+            </a>
+        </div>
+      </div>
+</div>
+
+  </aside>
+</div>
+
+
+<div class="mod-actions-menu print-hidden" bis_skin_checked="1"></div>
+<div data-testid="unpublish-post-modal-container" class="unpublish-post-modal-container hidden" bis_skin_checked="1"></div>
+<div id="suspend-modal-content" class="hidden" bis_skin_checked="1">
+  <p>
+    Once suspended, meherulsust will not be able to comment or publish posts until their suspension is removed.
+  </p>
+
+  <div class="crayons-field mt-4" bis_skin_checked="1">
+    <label for="suspend-reason-userid-323069" class="crayons-field__label">
+      Note:
+    </label>
+    <textarea id="suspend-reason-userid-323069" rows="4" cols="70" placeholder="Reason for suspension" class="crayons-textfield" aria-describedby="suspension-reason-error" required=""></textarea>
+    <p id="suspension-reason-error" data-testid="suspension-reason-error" class="suspend-reason-error crayons-field__description" style="color: red;" aria-live="assertive">
+    </p>
+  </div>
+  <div class="mt-4" bis_skin_checked="1">
+    <button id="submit-user-suspend-btn" class="c-btn c-btn--primary c-btn--destructive" data-btn-action="suspend" data-reason-selector="#suspend-reason-userid-323069" data-user-id="323069" data-username="meherulsust">
+      Submit &amp; Suspend
+    </button>
+  </div>
+</div>
+
+<div id="unsuspend-modal-content" class="hidden" bis_skin_checked="1">
+  <p>
+    Once unsuspended, meherulsust will be able to comment and publish posts again.
+  </p>
+
+  <div class="crayons-field mt-4" bis_skin_checked="1">
+    <label for="unsuspend-reason-userid-323069" class="crayons-field__label">
+      Note:
+    </label>
+    <textarea id="unsuspend-reason-userid-323069" rows="4" cols="70" placeholder="Reason for unsuspension" class="crayons-textfield" aria-describedby="unsuspension-reason-error" required=""></textarea>
+    <p id="unsuspension-reason-error" data-testid="unsuspension-reason-error" class="unsuspend-reason-error crayons-field__description" style="color: red;" aria-live="assertive">
+    </p>
+  </div>
+  <div class="mt-4" bis_skin_checked="1">
+    <button id="submit-user-unsuspend-btn" class="c-btn c-btn--primary" data-btn-action="unsuspend" data-reason-selector="#unsuspend-reason-userid-323069" data-user-id="323069" data-username="meherulsust">
+      Submit &amp; Unsuspend
+    </button>
+  </div>
+</div>
+
+<div id="unpublish-all-posts" class="hidden" bis_skin_checked="1">
+  <p>
+    Once unpublished, all posts by meherulsust will become hidden and only accessible to themselves.
+  </p>
+  <p class="mt-2">
+    If meherulsust is not suspended, they can still re-publish their posts from their dashboard.
+  </p>
+  <div class="mt-4" bis_skin_checked="1">
+    <button id="unpublish-all-posts-submit-btn" class="c-btn c-btn--destructive c-btn--primary" data-user-id="323069">
+      Unpublish all posts
+    </button>
+  </div>
+</div>
+
+<div id="unpublish-post-modal" class="hidden" bis_skin_checked="1">
+  <p>
+    Once unpublished, this post will become invisible to the public
+    and only accessible to meherulsust.
+  </p>
+  <p>They can still re-publish the post if they are not suspended.</p>
+  <div class="mt-4" bis_skin_checked="1">
+    <button destructive="" variant="primary" class="c-btn c-btn--primary c-btn--destructive" id="confirm-unpublish-post-action">
+      Unpublish post
+    </button>
+  </div>
+</div>
+
+<div id="flag-user-modal-content" class="hidden" bis_skin_checked="1">
+  <p>
+    Thanks for keeping DEV Community 👩‍💻👨‍💻 safe. Here is what you can do to flag meherulsust:
+  </p>
+
+  <div class="crayons-field crayons-field--radio mt-4" bis_skin_checked="1">
+    <input type="radio" id="flag-user-radio-input" name="flag-user-radio-input" class="crayons-radio" data-reactable-id="323069" data-category="vomit" data-reactable-type="User">
+    <label for="flag-user-radio-input" class="crayons-field__label">
+      Make all posts by meherulsust less visible
+      <p class="crayons-field__description">
+        meherulsust consistently posts content that violates DEV Community 👩‍💻👨‍💻's
+        code of conduct because it is harassing, offensive or spammy.
+      </p>
+    </label>
+  </div>
+
+  <div class="mt-4" bis_skin_checked="1">
+    <a href="javascript:void(0);" id="report-inappropriate-content" data-report-abuse-link="/report-abuse?url=https://dev.to/meherulsust/how-to-build-a-jwt-authenticated-api-with-lumen-831-171o">
+      Report other inappropriate conduct
+    </a>
+  </div>
+
+  <div class="mt-6" bis_skin_checked="1">
+    <p id="unselected-radio-error" data-testid="unselected-radio-error" class="crayons-field__description mb-4" style="color: red;" aria-live="assertive">
+    </p>
+    <button id="confirm-flag-user-action" class="c-btn c-btn--primary c-btn--destructive" data-category="vomit" data-reactable-type="User" data-user-id="323069" data-username="meherulsust">
+      Confirm Flag
+    </button>
+  </div>
+</div>
+
+<div id="unflag-user-modal-content" class="hidden" bis_skin_checked="1">
+  <p>
+    Unflagging meherulsust will restore default visibility to their posts.
+  </p>
+
+  <div class="mt-6" bis_skin_checked="1">
+    <button id="confirm-unflag-user-action" class="c-btn c-btn--primary" data-category="vomit" data-reactable-type="User" data-user-id="323069" data-username="meherulsust">
+      Confirm Unflag
+    </button>
+  </div>
+</div>
+
+
+<div class="fullscreen-code js-fullscreen-code" bis_skin_checked="1"></div>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_followButtons-0da2a7381c1a247d5a6a.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/7-5771d3d5688486f8f606.chunk.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/followButtons-e1c3a73e7eb5c7f22ff8.chunk.js" defer="defer"></script>
+
+  <script>
+    var waitingOnPodcast = setInterval(function() {
+  if (typeof initializePodcastPlayback !== 'undefined') {
+    initializePodcastPlayback();
+    clearInterval(waitingOnPodcast);
+  }
+}, 1);
+
+    if (document.head.querySelector('meta[name="user-signed-in"][content="true"]')) {
+  function displayPollResults(json) {
+    var totalVotes = json.voting_data.votes_count;
+    json.voting_data.votes_distribution.forEach(function(point) {
+      var pollOptionItem = document.getElementById('poll_option_list_item_'+point[0]);
+      var optionText = document.getElementById('poll_option_label_'+point[0]).textContent;
+      if (json.user_vote_poll_option_id === point[0]) {
+        var votedClass = 'optionvotedfor'
+      } else {
+        var votedClass = 'optionnotvotedfor'
+      }
+      if (totalVotes === 0) {
+        var percent = 0;
+      } else {
+        var percent = (point[1]/totalVotes)*100;
+      }
+      var roundedPercent = Math.round( percent * 10 ) / 10
+      var percentFromRight = (100-roundedPercent)
+      var html = '<span><span class="ltag-votepercent ltag-'+votedClass+'" style="right:'+percentFromRight+'%"></span>        <span class="ltag-votepercenttext">'+optionText+' — '+roundedPercent+'%</span></span>';
+      pollOptionItem.innerHTML = html;
+      pollOptionItem.classList.add('already-voted')
+      document.getElementById('showmethemoney-'+json.poll_id).innerHTML = '<span class="ltag-voting-results-count">'+totalVotes+' total votes</span>';
+    })
+  }
+
+  var polls = document.getElementsByClassName('ltag-poll');
+  for (var i = 0; i < polls.length; i += 1) {
+    var poll = polls[i]
+    var pollId = poll.dataset.pollId
+    window.fetch('/poll_votes/'+pollId)
+    .then(function(response){
+      response.json().then(
+        function(json) {
+          if (json.voted) {
+            displayPollResults(json)
+          } else {
+            var els = document.getElementById('poll_'+json.poll_id).getElementsByClassName('ltag-polloption');
+
+            for (i = 0; i < els.length; i += 1) {
+              els[i].addEventListener('click', function(e) {
+                var tokenMeta = document.querySelector("meta[name='csrf-token']")
+                if (!tokenMeta) {
+                  alert('Whoops. There was an error. Your vote was not counted. Try refreshing the page.')
+                  return
+                }
+                var csrfToken = tokenMeta.getAttribute('content')
+                var optionId = e.target.dataset.optionId
+                window.fetch('/poll_votes', {
+                  method: 'POST',
+                  headers: {
+                    'X-CSRF-Token': csrfToken,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({poll_vote: { poll_option_id: optionId } }),
+                  credentials: 'same-origin',
+                }).then(function(response){
+                  response.json().then(function(j){displayPollResults(j)})
+                })
+              });
+            }
+
+            document.getElementById('showmethemoney-'+json.poll_id).addEventListener('click', function() {
+              pollId = this.dataset.pollId
+              window.fetch('/poll_skips', {
+                method: 'POST',
+                headers: {
+                  'X-CSRF-Token': csrfToken,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({poll_skip: {poll_id: pollId }}),
+                credentials: 'same-origin',
+              }).then(function(response){
+                response.json().then(function(j){displayPollResults(j)})
+              })
+            });
+          }
+        }
+      )
+    })
+  }
+} else {
+    var els = document.getElementsByClassName('ltag-poll')
+    for (i = 0; i < els.length; i += 1) {
+      els[i].onclick = function(e) {
+        if (typeof showLoginModal !== "undefined") {
+          showLoginModal();
+        }
+      }
+    }
+}
+
+    function activateRunkitTags() {
+  if (!areAnyRunkitTagsPresent())
+    return
+
+  var checkRunkit = setInterval(function() {
+    try {
+      dynamicallyLoadRunkitLibrary()
+
+      if (typeof(RunKit) === 'undefined') {
+        return
+      }
+
+      replaceTagContentsWithRunkitWidget()
+      clearInterval(checkRunkit);
+    } catch(e) {
+      console.error(e);
+      clearInterval(checkRunkit);
+    }
+  }, 200);
+}
+
+function isRunkitTagAlreadyActive(runkitTag) {
+  return runkitTag.querySelector("iframe") !== null;
+};
+
+function areAnyRunkitTagsPresent() {
+  var presentRunkitTags = document.getElementsByClassName("runkit-element");
+
+  return presentRunkitTags.length > 0
+}
+
+function replaceTagContentsWithRunkitWidget() {
+  var targets = document.getElementsByClassName("runkit-element");
+  for (var i = 0; i < targets.length; i++) {
+    if (isRunkitTagAlreadyActive(targets[i])) {
+      continue;
+    }
+
+    var wrapperContent = targets[i].textContent;
+    if (/^(<iframe src)/.test(wrapperContent) === false) {
+      if (targets[i].children.length > 0) {
+        var preamble = targets[i].children[0].textContent;
+        var content = targets[i].children[1].textContent;
+        targets[i].innerHTML = "";
+        var notebook = RunKit.createNotebook({
+          element: targets[i],
+          source: content,
+          preamble: preamble
+        });
+      }
+    }
+  }
+};
+
+function dynamicallyLoadRunkitLibrary() {
+  if (typeof(dynamicallyLoadScript) === "undefined")
+    return
+
+  dynamicallyLoadScript("//embed.runkit.com")
+}
+
+activateRunkitTags();
+
+    var videoPreviews = document.getElementsByClassName("ltag__twitter-tweet__media__video-wrapper");
+[].forEach.call(videoPreviews, function(el) {
+  el.onclick = function(e) {
+    var divHeight = el.offsetHeight;
+    el.style.maxHeight = divHeight + "px";
+    el.getElementsByClassName("ltag__twitter-tweet__media--video-preview")[0].style.display = "none";
+    el.getElementsByClassName("ltag__twitter-tweet__video")[0].style.display = "block";
+    el.getElementsByTagName("video")[0].play();
+  }
+});
+var tweets = document.getElementsByClassName("ltag__twitter-tweet__main");
+[].forEach.call(tweets, function(tweet){
+  tweet.onclick = function(e) {
+    if (e.target.nodeName == "A" || e.target.parentElement.nodeName == "A") {
+      return;
+    }
+    window.open(tweet.dataset.url,"_blank");
+  }
+});
+
+  </script>
+
+    
+  </div>
+</div>
+    <footer class="crayons-footer print-hidden">
+  <div id="footer-container" class="crayons-footer__container" bis_skin_checked="1">
+    <p class="fs-s crayons-footer__description">
+      <a class="c-link c-link--branded fw-medium" aria-label="DEV Community 👩‍💻👨‍💻 Home" href="https://dev.to/">DEV Community 👩‍💻👨‍💻</a> — A constructive and inclusive social network for software developers. With you every step of your journey.
+    </p>
+    <div class="fs-s" bis_skin_checked="1">
+      <p>Built on <a class="c-link c-link--branded" target="_blank" rel="noopener" href="https://www.forem.com/">Forem</a> — the <a target="_blank" rel="noopener" class="c-link c-link--branded" href="https://dev.to/t/opensource">open source</a> software that powers <a target="_blank" rel="noopener" class="c-link c-link--branded" href="https://dev.to/">DEV</a> and other inclusive communities.</p>
+      <p>Made with love and <a target="_blank" rel="noopener" class="c-link c-link--branded" href="https://dev.to/t/rails">Ruby on Rails</a>. DEV Community 👩‍💻👨‍💻 <span title="copyright">©</span> 2016 - 2022.</p>
+    </div>
+    <a href="https://www.forem.com/" target="_blank" rel="noopener" class="c-link c-link c-link--block c-link--icon-alone self-center">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" role="img" aria-labelledby="a7tur7tr812ne11w0t3h2pzsg0znti7t" class="crayons-icon crayons-icon--default c-link__icon"><title id="a7tur7tr812ne11w0t3h2pzsg0znti7t">Forem logo</title>
+    <g clip-path="url(#clip0)" fill="#1AB3A6">
+        <path d="M4.603 1.438a8.056 8.056 0 017.643 5.478 8.543 8.543 0 00-3.023 5.968H8.054C3.606 12.884 0 9.296 0 4.87V1.468a.03.03 0 01.03-.03h4.573zM23.97 6.515a.03.03 0 01.03.03v2.833c0 4.11-3.354 7.442-7.491 7.442h-2.881v5.726h-2.305V14.53l.022-1.145c.294-3.843 3.526-6.87 7.469-6.87h5.155z"></path>
+    </g>
+    <defs>
+        <clippath id="clip0">
+            <path fill="#fff" d="M0 0h24v24H0z"></path>
+        </clippath>
+    </defs>
+</svg>
+
+    </a>
+  </div>
+</footer>
+<div id="snack-zone" bis_skin_checked="1"><div class="hidden" bis_skin_checked="1"></div></div>
+
+    <div id="global-signup-modal" class="authentication-modal hidden" bis_skin_checked="1">
+  <div class="authentication-modal__container" bis_skin_checked="1">
+    <figure class="authentication-modal__image-container">
+      <img class="authentication-modal__image" src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/devlogo-pwa-512(1).png" alt="DEV Community 👩‍💻👨‍💻" loading="lazy">
+    </figure>
+    <div class="authentication-modal__content" bis_skin_checked="1">
+      <p class="authentication-modal__description">
+          We're a place where coders share, stay up-to-date and grow their careers.
+      </p>
+    </div>
+    <div class="authentication-modal__actions" bis_skin_checked="1">
+      <a href="https://dev.to/enter" class="crayons-btn" aria-label="Log in" data-no-instant="">
+        Log in
+      </a>
+      <a href="https://dev.to/enter?state=new-user" class="crayons-btn crayons-btn--ghost-brand js-global-signup-modal__create-account" aria-label="Create new account" data-no-instant="">
+        Create account
+      </a>
+    </div>
+  </div>
+</div>
+
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/runtime_signupModalShortcuts-62d6b09df96a2a2eff61.js" defer="defer"></script>
+<script src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/signupModalShortcuts-48fd06752207303674b8.chunk.js" defer="defer"></script>
+
+  <div id="i18n-translations" data-translations="{&quot;en&quot;:{&quot;core&quot;:{&quot;add_comment&quot;:&quot;Add comment&quot;,&quot;beta&quot;:&quot;beta&quot;,&quot;comment&quot;:&quot;Comment&quot;,&quot;copy_link&quot;:&quot;Copy link&quot;,&quot;edit_profile&quot;:&quot;Edit profile&quot;,&quot;follow&quot;:&quot;Follow&quot;,&quot;follow_back&quot;:&quot;Follow back&quot;,&quot;following&quot;:&quot;Following&quot;,&quot;like&quot;:&quot;Like&quot;,&quot;loading&quot;:&quot;loading...&quot;,&quot;reaction&quot;:&quot;Reaction&quot;,&quot;report_abuse&quot;:&quot;Report abuse&quot;,&quot;search&quot;:&quot;Search&quot;,&quot;success_settings&quot;:&quot;Successfully updated settings.&quot;}}}" bis_skin_checked="1"></div>
+  
+  
+<script>(() => {
+        window.addoncropExtensions = window.addoncropExtensions || [];
+        window.addoncropExtensions.push({
+            mode: 'emulator',
+            emulator: 'Foxified',
+            extension: {
+                id: 44,
+                name: 'YouTube Downloader by Addoncrop',
+                version: '17.2.7',
+                date: 'April 11, 2022',
+            },
+            flixmateConnected: false,
+        });
+    })();</script><iframe src="./How to build a JWT Authenticated API with Lumen (8.3.1) - DEV Community 👩_💻👨_💻_files/saved_resource.html" style="display: none;"></iframe></body></html>
